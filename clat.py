@@ -4,8 +4,8 @@ clat — Colin's LaTeX Tidy
 
 Rules:
   1. Labels inline with headings: \\section{...}\\label{...}
-  2. Clear % lines around equation/align/figure/table environments
-     (unless a paragraph break already provides separation)
+  2. Clear lines around display environments: % for equation/align
+     (no paragraph break), blank line for figure/table (floats)
   3. One sentence per line (abbreviation-safe)
   4. Equation punctuation: adds comma or period at end of display
      equations based on the following prose context
@@ -63,28 +63,47 @@ def rule1_labels_inline(text):
 
 
 def rule2_equation_separators(text):
-    """Add % separator lines around equation/align/figure/table environments."""
+    """Add separator lines around display environments.
+
+    Equations/aligns get % comment lines (visual separation without paragraph break).
+    Figures/tables get blank lines (floats, so paragraph break is fine).
+    """
     lines = text.split('\n')
+    eq_start = re.compile(r'^\s*\\begin\{(equation|align)\}')
+    eq_end = re.compile(r'^\s*\\end\{(equation|align)\}')
+    float_start = re.compile(r'^\s*\\begin\{(figure|table)\}')
+    float_end = re.compile(r'^\s*\\end\{(figure|table)\}')
     env_start = re.compile(r'^\s*\\begin\{(equation|align|figure|table)\}')
-    env_end = re.compile(r'^\s*\\end\{(equation|align|figure|table)\}')
 
     result = []
     n = len(lines)
 
     for i, line in enumerate(lines):
-        # Before \begin{...}: insert % if previous line is non-empty prose
-        if env_start.match(line) and result:
+        is_eq_start = eq_start.match(line)
+        is_float_start = float_start.match(line)
+
+        # Before \begin{...}: insert separator if previous line is non-empty
+        if (is_eq_start or is_float_start) and result:
             prev = result[-1].strip()
-            if prev and prev != '%':
+            if is_eq_start and prev and prev != '%':
                 result.append('%')
+            elif is_float_start and prev:  # blank line for floats
+                if prev != '':
+                    result.append('')
 
         result.append(line)
 
-        # After \end{...}: insert % if next line is non-empty prose
-        if env_end.match(line) and i + 1 < n:
+        is_eq_end = eq_end.match(line)
+        is_float_end = float_end.match(line)
+
+        # After \end{...}: insert separator if next line is non-empty prose
+        if (is_eq_end or is_float_end) and i + 1 < n:
             nxt = lines[i + 1].strip()
-            if nxt and nxt != '%' and not env_start.match(lines[i + 1]):
+            if is_eq_end and nxt and nxt != '%' and not env_start.match(lines[i + 1]):
                 result.append('%')
+            elif is_float_end and nxt:  # blank line for floats
+                if nxt != '':
+                    result.append('')
 
     return '\n'.join(result)
 
