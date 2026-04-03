@@ -4,7 +4,7 @@ clat — Colin's LaTeX Tidy
 
 Rules:
   1. Labels inline with headings: \\section{...}\\label{...}
-  2. Clear % lines around equation/align environments
+  2. Clear % lines around equation/align/figure/table environments
      (unless a paragraph break already provides separation)
   3. One sentence per line (abbreviation-safe)
   4. Equation punctuation: adds comma or period at end of display
@@ -63,10 +63,10 @@ def rule1_labels_inline(text):
 
 
 def rule2_equation_separators(text):
-    """Add % separator lines around equation/align environments."""
+    """Add % separator lines around equation/align/figure/table environments."""
     lines = text.split('\n')
-    env_start = re.compile(r'^\s*\\begin\{(equation|align)\}')
-    env_end = re.compile(r'^\s*\\end\{(equation|align)\}')
+    env_start = re.compile(r'^\s*\\begin\{(equation|align|figure|table)\}')
+    env_end = re.compile(r'^\s*\\end\{(equation|align|figure|table)\}')
 
     result = []
     n = len(lines)
