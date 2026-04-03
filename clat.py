@@ -10,6 +10,7 @@ Rules:
   4. Equation punctuation: adds comma or period at end of display
      equations based on the following prose context
   5. Heading spacing: two blank lines before, no blank line after
+  6. Figure indentation: tab-indent content inside figure environments
 
 Usage:
   clat main.tex              # in-place
@@ -270,12 +271,58 @@ def rule5_heading_spacing(text):
     return '\n'.join(result)
 
 
+def rule6_figure_indentation(text):
+    """Tab-indent content inside figure (and table) environments."""
+    lines = text.split('\n')
+    result = []
+    env_re_open = re.compile(r'^\s*\\begin\{(figure|table)\}')
+    env_re_close = re.compile(r'^\s*\\end\{(figure|table)\}')
+    depth = 0
+
+    for line in lines:
+        stripped = line.strip()
+
+        # \end line: dedent, then output at outer level
+        if depth > 0 and env_re_close.match(line):
+            depth -= 1
+            result.append('\t' * depth + stripped if depth > 0 else stripped)
+            continue
+
+        if depth > 0:
+            if not stripped:
+                # Blank line — preserve
+                result.append(line)
+            elif line.startswith('\t'):
+                # Already has tab indentation — just ensure minimum depth
+                existing_tabs = len(line) - len(line.lstrip('\t'))
+                if existing_tabs < depth:
+                    result.append('\t' * depth + line.lstrip('\t'))
+                else:
+                    result.append(line)
+            else:
+                # Has space indentation — prefix with tab, keep relative spaces
+                leading = len(line) - len(line.lstrip())
+                if leading > 0:
+                    result.append('\t' * depth + line)
+                else:
+                    result.append('\t' * depth + stripped)
+        else:
+            result.append(line)
+
+        # \begin line: increase depth for subsequent lines
+        if env_re_open.match(line):
+            depth += 1
+
+    return '\n'.join(result)
+
+
 def texfmt(text):
     """Apply all formatting rules in order."""
     text = rule1_labels_inline(text)
     text = rule5_heading_spacing(text)
     text = rule2_equation_separators(text)
     text = rule4_equation_punctuation(text)
+    text = rule6_figure_indentation(text)
     text = rule3_one_sentence_per_line(text)
     return text
 
