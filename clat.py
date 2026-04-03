@@ -9,6 +9,7 @@ Rules:
   3. One sentence per line (abbreviation-safe)
   4. Equation punctuation: adds comma or period at end of display
      equations based on the following prose context
+  5. Heading spacing: two blank lines before, no blank line after
 
 Usage:
   clat main.tex              # in-place
@@ -237,9 +238,42 @@ def rule4_equation_punctuation(text):
     return '\n'.join(result)
 
 
+def rule5_heading_spacing(text):
+    """Ensure two blank lines before headings, no blank line after."""
+    lines = text.split('\n')
+    heading_re = re.compile(r'^\s*\\(?:sub)*section\*?\{')
+    result = []
+
+    for i, line in enumerate(lines):
+        if heading_re.match(line):
+            # Remove all trailing blank lines from result (we'll add exactly two)
+            while result and result[-1].strip() == '':
+                result.pop()
+            # Don't add blank lines before the very first content line
+            if result:
+                result.append('')
+                result.append('')
+            result.append(line)
+            continue
+
+        # Skip blank line immediately after a heading (with possible \label)
+        if i > 0 and line.strip() == '':
+            # Walk back to see if previous non-empty line was a heading
+            prev_idx = len(result) - 1
+            while prev_idx >= 0 and result[prev_idx].strip() == '':
+                prev_idx -= 1
+            if prev_idx >= 0 and heading_re.match(result[prev_idx]):
+                continue  # swallow blank line after heading
+
+        result.append(line)
+
+    return '\n'.join(result)
+
+
 def texfmt(text):
     """Apply all formatting rules in order."""
     text = rule1_labels_inline(text)
+    text = rule5_heading_spacing(text)
     text = rule2_equation_separators(text)
     text = rule4_equation_punctuation(text)
     text = rule3_one_sentence_per_line(text)
