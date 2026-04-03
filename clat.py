@@ -7,6 +7,8 @@ Rules:
   2. Clear % lines around equation/align environments
      (unless a paragraph break already provides separation)
   3. One sentence per line (abbreviation-safe)
+  4. Equation punctuation: adds comma or period at end of display
+     equations based on the following prose context
 
 Usage:
   clat main.tex              # in-place
@@ -147,10 +149,99 @@ def rule3_one_sentence_per_line(text):
     return '\n'.join(result)
 
 
+# Words that indicate the sentence continues after the equation (→ comma).
+CONTINUATION_WORDS = re.compile(
+    r'^(?:where|with|for|in\s+which|such\s+that|so\s+that|and|here|'
+    r'noting|since|because|if|as|giving|yielding|from\s+which|'
+    r'subject\s+to|provided|assuming|respectively)\b',
+    re.IGNORECASE,
+)
+
+
+def rule4_equation_punctuation(text):
+    """Add trailing punctuation to display equations based on context."""
+    lines = text.split('\n')
+    env_end = re.compile(r'^\s*\\end\{(equation|align)\}\*?')
+    result = list(lines)  # work on a copy
+    n = len(result)
+
+    for i in range(n):
+        if not env_end.match(result[i]):
+            continue
+
+        # Find the math content line: walk back past \end, blank, %
+        # A line may contain both math and \label — handle inline labels
+        math_line = None
+        math_idx = None
+        for j in range(i - 1, -1, -1):
+            s = result[j].strip()
+            if s == '%' or s == '' or s.startswith('\\end{'):
+                continue
+            # Pure \label line — skip and keep looking
+            if re.match(r'^\\label\{[^}]+\}$', s):
+                continue
+            math_line = result[j]
+            math_idx = j
+            break
+
+        if math_idx is None:
+            continue
+
+        # Already punctuated?
+        content = math_line.rstrip()
+        # Strip trailing LaTeX noise: \label{...}, \\, \nonumber, \notag
+        bare = re.sub(r'\s*\\label\{[^}]+\}\s*$', '', content)
+        bare = re.sub(r'\s*(?:\\\\|\\nonumber|\\notag)\s*$', '', bare)
+        # Strip \boxed{...} closing brace if present
+        bare = re.sub(r'\}$', '', bare) if '\\boxed' in content else bare
+        bare = bare.rstrip()
+        if bare and bare[-1] in '.,;:':
+            continue  # already has punctuation
+
+        # Find next prose line after \end{...}
+        next_prose = None
+        for k in range(i + 1, n):
+            s = result[k].strip()
+            if s == '' or s == '%':
+                continue
+            next_prose = s
+            break
+
+        if next_prose is None:
+            # End of file after equation → period
+            punct = '.'
+        elif next_prose.startswith('\\begin{'):
+            # Another environment follows — likely needs comma
+            punct = ','
+        elif CONTINUATION_WORDS.match(next_prose):
+            punct = ','
+        elif next_prose[0].islower():
+            # Lowercase start → sentence continues
+            punct = ','
+        elif next_prose[0].isupper():
+            # Uppercase start → new sentence
+            punct = '.'
+        else:
+            # LaTeX command, macro, etc. — skip
+            continue
+
+        # Insert punctuation before trailing \label{}, \\, \nonumber, \notag
+        trail_match = re.search(
+            r'(\s*(?:\\label\{[^}]+\}|\\\\|\\nonumber|\\notag)\s*)$', content)
+        if trail_match:
+            ins = trail_match.start()
+            result[math_idx] = content[:ins] + punct + content[ins:]
+        else:
+            result[math_idx] = content + punct
+
+    return '\n'.join(result)
+
+
 def texfmt(text):
     """Apply all formatting rules in order."""
     text = rule1_labels_inline(text)
     text = rule2_equation_separators(text)
+    text = rule4_equation_punctuation(text)
     text = rule3_one_sentence_per_line(text)
     return text
 
