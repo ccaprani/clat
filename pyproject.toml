@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clat"
+version = "0.3.0"
+description = "Colin's LaTeX Tidy — somewhere between a clang and a splat"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.8"
+dependencies = ["rich", "tomli>=1.0; python_version < '3.11'"]
+authors = [
+    { name = "Colin Caprani" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Topic :: Text Processing :: Markup :: LaTeX",
+    "Programming Language :: Python :: 3",
+]
+
+[project.scripts]
+clat = "clat.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

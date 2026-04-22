@@ -1,0 +1,444 @@
+"""Tests for clat formatting rules."""
+
+import os
+import pytest
+
+from clat.rules import (
+    rule1_labels_inline,
+    rule2_equation_separators,
+    rule3_one_sentence_per_line,
+    rule4_equation_punctuation,
+    rule5_heading_spacing,
+    rule6_figure_indentation,
+    rule7_strip_decorative_comments,
+    rule8_math_delimiters,
+    rule9_tilde_before_refs,
+    rule10_number_unit_spacing,
+    rule11_old_font_commands,
+    rule12_ellipsis,
+    warn_hardcoded_refs,
+    warn_manual_sizing,
+    warn_long_file,
+    warn_float_after_heading,
+    texfmt,
+    ClatResult,
+    RULES,
+    DEFAULT_THRESHOLD,
+    _effective_weight,
+    _get_rule,
+)
+
+TESTS_DIR = os.path.dirname(__file__)
+
+
+# ── Integration test: full pipeline against golden file ──────────────
+
+class TestGoldenFile:
+    def test_full_pipeline(self):
+        with open(os.path.join(TESTS_DIR, 'input.tex')) as f:
+            source = f.read()
+        with open(os.path.join(TESTS_DIR, 'expected.tex')) as f:
+            expected = f.read()
+        result = texfmt(source, 'input.tex')
+        assert result.text == expected
+
+    def test_idempotent(self):
+        with open(os.path.join(TESTS_DIR, 'expected.tex')) as f:
+            expected = f.read()
+        result = texfmt(expected, 'expected.tex')
+        assert result.text == expected
+
+
+# ── Rule 1: labels inline ───────────────────────────────────────────
+
+class TestRule1:
+    def test_section_label_merge(self):
+        src = '\\section{Foo}\n\\label{sec:foo}'
+        assert rule1_labels_inline(src) == '\\section{Foo}\\label{sec:foo}'
+
+    def test_subsection_label_merge(self):
+        src = '\\subsection{Bar}\n  \\label{sec:bar}'
+        assert rule1_labels_inline(src) == '\\subsection{Bar}\\label{sec:bar}'
+
+    def test_already_inline(self):
+        src = '\\section{Foo}\\label{sec:foo}'
+        assert rule1_labels_inline(src) == src
+
+    def test_no_label(self):
+        src = '\\section{Foo}\nSome text.'
+        assert rule1_labels_inline(src) == src
+
+
+# ── Rule 2: equation separators ─────────────────────────────────────
+
+class TestRule2:
+    def test_percent_before_equation(self):
+        src = 'Some text.\n\\begin{equation}\nx\n\\end{equation}'
+        result = rule2_equation_separators(src)
+        lines = result.split('\n')
+        assert lines[1] == '%'
+        assert lines[2] == '\\begin{equation}'
+
+    def test_no_double_percent(self):
+        src = 'Some text.\n%\n\\begin{equation}\nx\n\\end{equation}'
+        result = rule2_equation_separators(src)
+        assert result.count('\n%\n%\n') == 0
+
+    def test_blank_line_around_figure(self):
+        src = 'Some text.\n\\begin{figure}\nfoo\n\\end{figure}\nMore text.'
+        result = rule2_equation_separators(src)
+        lines = result.split('\n')
+        assert lines[1] == ''
+        assert lines[2] == '\\begin{figure}'
+
+
+# ── Rule 3: one sentence per line ───────────────────────────────────
+
+class TestRule3:
+    def test_split_sentences(self):
+        src = 'First sentence. Second sentence.'
+        result = rule3_one_sentence_per_line(src)
+        assert result == 'First sentence.\nSecond sentence.'
+
+    def test_protect_abbreviation(self):
+        src = 'See Fig. 3 for details.'
+        result = rule3_one_sentence_per_line(src)
+        assert result == src  # no split
+
+    def test_skip_commands(self):
+        src = '\\begin{equation}\nA. B.\n\\end{equation}'
+        result = rule3_one_sentence_per_line(src)
+        assert result == src
+
+
+# ── Rule 4: equation punctuation ────────────────────────────────────
+
+class TestRule4:
+    def test_comma_before_where(self):
+        src = '\\begin{equation}\nF = ma\n\\end{equation}\nwhere'
+        result = rule4_equation_punctuation(src)
+        assert 'F = ma,' in result
+
+    def test_period_before_uppercase(self):
+        src = '\\begin{equation}\nE = mc^2\n\\end{equation}\nThe energy'
+        result = rule4_equation_punctuation(src)
+        assert 'E = mc^2.' in result
+
+    def test_already_punctuated(self):
+        src = '\\begin{equation}\nF = ma.\n\\end{equation}\nThe force'
+        result = rule4_equation_punctuation(src)
+        assert result.count('.') == 1  # no double punctuation
+
+
+# ── Rule 5: heading spacing ─────────────────────────────────────────
+
+class TestRule5:
+    def test_two_blanks_before(self):
+        src = 'Some text.\n\\section{Foo}'
+        result = rule5_heading_spacing(src)
+        lines = result.split('\n')
+        assert lines[1] == ''
+        assert lines[2] == ''
+        assert lines[3] == '\\section{Foo}'
+
+    def test_no_blank_after(self):
+        src = '\\section{Foo}\n\nSome text.'
+        result = rule5_heading_spacing(src)
+        lines = result.split('\n')
+        idx = lines.index('\\section{Foo}')
+        assert lines[idx + 1] == 'Some text.'
+
+
+# ── Rule 6: indentation ─────────────────────────────────────────────
+
+class TestRule6:
+    def test_figure_indent(self):
+        src = '\\begin{figure}\n\\centering\n\\end{figure}'
+        result = rule6_figure_indentation(src)
+        assert '\t\\centering' in result
+
+    def test_itemize_indent(self):
+        src = '\\begin{itemize}\n\\item Foo.\n\\end{itemize}'
+        result = rule6_figure_indentation(src)
+        assert '\t\\item Foo.' in result
+
+    def test_enumerate_indent(self):
+        src = '\\begin{enumerate}\n\\item Bar.\n\\end{enumerate}'
+        result = rule6_figure_indentation(src)
+        assert '\t\\item Bar.' in result
+
+    def test_nested(self):
+        src = '\\begin{figure}\n\\begin{itemize}\n\\item X.\n\\end{itemize}\n\\end{figure}'
+        result = rule6_figure_indentation(src)
+        assert '\t\t\\item X.' in result
+
+
+# ── Rule 7: decorative comments ─────────────────────────────────────
+
+class TestRule7:
+    def test_strip_equals(self):
+        src = 'text\n%% ========\nmore'
+        assert '====' not in rule7_strip_decorative_comments(src)
+
+    def test_strip_dashes(self):
+        src = 'text\n% ------\nmore'
+        assert '----' not in rule7_strip_decorative_comments(src)
+
+    def test_strip_stars(self):
+        src = 'text\n%% ****\nmore'
+        assert '****' not in rule7_strip_decorative_comments(src)
+
+    def test_keep_normal_comment(self):
+        src = '% This is a comment'
+        assert rule7_strip_decorative_comments(src) == src
+
+
+# ── Rule 8: math delimiters ─────────────────────────────────────────
+
+class TestRule8:
+    def test_inline_dollar(self):
+        src = 'The value $x$ is positive.'
+        assert rule8_math_delimiters(src) == 'The value \\(x\\) is positive.'
+
+    def test_display_dollar(self):
+        src = '$$E = mc^2$$'
+        assert rule8_math_delimiters(src) == '\\[E = mc^2\\]'
+
+    def test_escaped_dollar(self):
+        src = 'costs \\$5 each'
+        assert rule8_math_delimiters(src) == src
+
+    def test_skip_comments(self):
+        src = '% $x$ in a comment'
+        assert rule8_math_delimiters(src) == src
+
+
+# ── Rule 9: tilde before refs ───────────────────────────────────────
+
+class TestRule9:
+    def test_space_before_cref(self):
+        src = 'see \\cref{sec:foo}'
+        assert rule9_tilde_before_refs(src) == 'see~\\cref{sec:foo}'
+
+    def test_space_before_ref(self):
+        src = 'in \\ref{eq:one}'
+        assert rule9_tilde_before_refs(src) == 'in~\\ref{eq:one}'
+
+    def test_space_before_cite(self):
+        src = 'shown \\cite{smith2020}'
+        assert rule9_tilde_before_refs(src) == 'shown~\\cite{smith2020}'
+
+    def test_already_tilde(self):
+        src = 'see~\\cref{sec:foo}'
+        assert rule9_tilde_before_refs(src) == src
+
+
+# ── Rule 10: number-unit spacing ────────────────────────────────────
+
+class TestRule10:
+    def test_tilde_to_thinspace(self):
+        assert rule10_number_unit_spacing('100~kN') == '100\\,kN'
+
+    def test_space_to_thinspace(self):
+        assert rule10_number_unit_spacing('34 m/s') == '34\\,m/s'
+
+    def test_no_false_positive(self):
+        src = 'the 10 methods'
+        assert rule10_number_unit_spacing(src) == src
+
+    def test_mm(self):
+        assert rule10_number_unit_spacing('60 mm') == '60\\,mm'
+
+    def test_already_thinspace(self):
+        assert rule10_number_unit_spacing('100\\,kN') == '100\\,kN'
+
+
+# ── Rule 11: old font commands ──────────────────────────────────────
+
+class TestRule11:
+    def test_bf(self):
+        assert rule11_old_font_commands('{\\bf bold}') == '\\textbf{bold}'
+
+    def test_it(self):
+        assert rule11_old_font_commands('{\\it italic}') == '\\textit{italic}'
+
+    def test_em(self):
+        assert rule11_old_font_commands('{\\em emph}') == '\\emph{emph}'
+
+    def test_tt(self):
+        assert rule11_old_font_commands('{\\tt code}') == '\\texttt{code}'
+
+    def test_no_match(self):
+        src = '\\textbf{already modern}'
+        assert rule11_old_font_commands(src) == src
+
+
+# ── Rule 12: ellipsis ───────────────────────────────────────────────
+
+class TestRule12:
+    def test_triple_dot(self):
+        assert rule12_ellipsis('and so on...') == 'and so on\\dots'
+
+    def test_already_dots(self):
+        src = 'and so on\\dots'
+        assert rule12_ellipsis(src) == src
+
+    def test_skip_comment(self):
+        src = '% text...'
+        assert rule12_ellipsis(src) == src
+
+
+# ── Warnings (individual functions) ─────────────────────────────────
+
+class TestWarnings:
+    def test_hardcoded_figure(self):
+        w = warn_hardcoded_refs('See Figure 3 for details.', 'test.tex')
+        assert len(w) == 1
+        assert 'Figure 3' in w[0][2]
+
+    def test_hardcoded_table(self):
+        w = warn_hardcoded_refs('Table 1 shows results.', 'test.tex')
+        assert len(w) == 1
+
+    def test_no_false_positive_cref(self):
+        w = warn_hardcoded_refs('See \\cref{fig:one} for details.', 'test.tex')
+        assert len(w) == 0
+
+    def test_manual_sizing(self):
+        w = warn_manual_sizing('\\bigg( \\frac{a}{b} \\bigg)', 'test.tex')
+        assert len(w) == 2
+
+    def test_long_file(self):
+        short = '\n' * 100
+        assert warn_long_file(short, 'test.tex') == []
+        long = '\n' * 2500
+        w = warn_long_file(long, 'test.tex')
+        assert len(w) == 1
+        assert '2501 lines' in w[0][2]
+
+    def test_skip_comments(self):
+        w = warn_hardcoded_refs('% Figure 3', 'test.tex')
+        assert len(w) == 0
+        w = warn_manual_sizing('% \\bigg', 'test.tex')
+        assert len(w) == 0
+
+    def test_float_after_section(self):
+        src = '\\section{Foo}\\label{sec:foo}\n\n\\begin{figure}[t]\n\\end{figure}'
+        w = warn_float_after_heading(src, 'test.tex')
+        assert len(w) == 1
+        assert 'figure' in w[0][2]
+
+    def test_float_after_subsection(self):
+        src = '\\subsection{Bar}\n\\begin{table}[h]\n\\end{table}'
+        w = warn_float_after_heading(src, 'test.tex')
+        assert len(w) == 1
+        assert 'table' in w[0][2]
+
+    def test_float_after_heading_with_label_and_blanks(self):
+        src = '\\section{Foo}\n\\label{sec:foo}\n\n\\begin{figure}[t]\n\\end{figure}'
+        w = warn_float_after_heading(src, 'test.tex')
+        assert len(w) == 1
+
+    def test_no_warning_when_text_between(self):
+        src = '\\section{Foo}\nSome introductory text.\n\\begin{figure}[t]\n\\end{figure}'
+        w = warn_float_after_heading(src, 'test.tex')
+        assert len(w) == 0
+
+    def test_algorithm_after_heading(self):
+        src = '\\subsection{Method}\n\\begin{algorithm}[t]\n\\end{algorithm}'
+        w = warn_float_after_heading(src, 'test.tex')
+        assert len(w) == 1
+        assert 'algorithm' in w[0][2]
+
+    def test_no_warning_for_equation(self):
+        src = '\\section{Theory}\n\\begin{equation}\nx = 1\n\\end{equation}'
+        w = warn_float_after_heading(src, 'test.tex')
+        assert len(w) == 0
+
+
+# ── Rule registry ───────────────────────────────────────────────────
+
+class TestRegistry:
+    def test_all_rules_registered(self):
+        assert len(RULES) == 16
+
+    def test_rule_ids_unique(self):
+        ids = [r.id for r in RULES]
+        assert len(ids) == len(set(ids))
+
+    def test_get_rule(self):
+        r = _get_rule('labels_inline')
+        assert r is not None
+        assert r.fixable is True
+
+    def test_get_rule_missing(self):
+        assert _get_rule('nonexistent') is None
+
+    def test_fixable_count(self):
+        fixable = [r for r in RULES if r.fixable]
+        assert len(fixable) == 12
+
+    def test_unfixable_count(self):
+        unfixable = [r for r in RULES if not r.fixable]
+        assert len(unfixable) == 4
+
+
+# ── Threshold / config behaviour ────────────────────────────────────
+
+class TestThreshold:
+    def test_default_threshold(self):
+        assert DEFAULT_THRESHOLD == 5
+
+    def test_high_weight_fixable_is_clang(self):
+        """A fixable rule above threshold should produce a clang."""
+        src = '\\section{Foo}\n\\label{sec:foo}'
+        config = {'threshold': 5, 'weights': {'labels_inline': 8}}
+        result = texfmt(src, 'test.tex', config=config)
+        clang_ids = [r.id for r in result.clangs]
+        assert 'labels_inline' in clang_ids
+
+    def test_low_weight_fixable_is_splat(self):
+        """A fixable rule below threshold should produce a splat."""
+        src = '\\section{Foo}\n\\label{sec:foo}'
+        config = {'threshold': 10, 'weights': {}}
+        result = texfmt(src, 'test.tex', config=config)
+        assert len(result.clangs) == 0
+        splat_rule_ids = [item[0].id for item in result.splats
+                          if hasattr(item[0], 'id')]
+        assert 'labels_inline' in splat_rule_ids
+
+    def test_high_weight_unfixable_is_clunk(self):
+        """An unfixable rule above threshold should produce a clunk."""
+        src = 'See Figure 3 for details.'
+        config = {'threshold': 5, 'weights': {'hardcoded_refs': 8}}
+        result = texfmt(src, 'test.tex', config=config)
+        clunk_rule_ids = [item[0].id for item in result.clunks]
+        assert 'hardcoded_refs' in clunk_rule_ids
+
+    def test_low_weight_unfixable_is_splat(self):
+        """An unfixable rule below threshold should produce a splat."""
+        src = 'See Figure 3 for details.'
+        config = {'threshold': 10, 'weights': {}}
+        result = texfmt(src, 'test.tex', config=config)
+        assert len(result.clunks) == 0
+        splat_rule_ids = [item[0].id for item in result.splats
+                          if hasattr(item[0], 'id')]
+        assert 'hardcoded_refs' in splat_rule_ids
+
+    def test_weight_override(self):
+        """Config weight should override default."""
+        r = _get_rule('ellipsis')
+        assert r.weight == 4  # default
+        config = {'threshold': 5, 'weights': {'ellipsis': 9}}
+        assert _effective_weight(r, config) == 9
+
+    def test_text_still_fixed_below_threshold(self):
+        """Fixable rules below threshold should still fix the text."""
+        src = '\\section{Foo}\n\\label{sec:foo}'
+        config = {'threshold': 10, 'weights': {}}
+        result = texfmt(src, 'test.tex', config=config)
+        assert '\\section{Foo}\\label{sec:foo}' in result.text
+
+    def test_result_type(self):
+        result = texfmt('hello', 'test.tex')
+        assert isinstance(result, ClatResult)

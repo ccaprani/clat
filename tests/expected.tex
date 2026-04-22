@@ -1,0 +1,64 @@
+\documentclass{article}
+\usepackage{amsmath}
+\begin{document}
+
+
+\section{Introduction}\label{sec:intro}
+This is the first sentence.
+This is the second sentence on the same line.
+The penalty spring stiffness \(k_p\) must be chosen carefully.
+Display math should use double dollars: \[E = mc^2.\]
+An inline equation like \(F = ma\) appears here.
+
+The method is described in~\cref{sec:method} and results in~\ref{sec:results}.
+See also Table 1 and Figure 3 for details.
+
+
+\section{Method}\label{sec:method}
+A force of 100\,kN is applied at 34\,m/s.
+The beam is 60\,mm long and weighs 500\,kg.
+
+Use of \textbf{bold text} and \textit{italic text} is old-style.
+Also \emph{emphasised} and \texttt{monospaced} should be updated.
+
+\begin{equation}
+F = ma,
+\end{equation}
+%
+where \(F\) is force.
+
+\begin{equation}
+E = \frac{1}{2}mv^2.
+\end{equation}
+%
+The energy is always positive.
+
+
+\section{Results}\label{sec:results}
+The results show convergence for \(n > 10\).
+The range is from 0 to \(\infty\)\dots
+
+\begin{figure}[t]
+	\centering
+	\includegraphics{fig1.pdf}
+	\caption{A figure.}
+	\label{fig:one}
+\end{figure}
+
+\begin{itemize}
+	\item First item.
+	\item Second item with \(x = 1\).
+\end{itemize}
+
+We use \bigg( \frac{a}{b} \bigg) for large brackets.
+
+\begin{enumerate}
+	\item Alpha.
+	\item Beta.
+\end{enumerate}
+
+
+\section{Conclusion}
+The method works well.
+Further work is needed. See Eq. 3 and Section 2 for details.
+\end{document}

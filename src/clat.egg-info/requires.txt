@@ -1,0 +1,4 @@
+rich
+
+[:python_version < "3.11"]
+tomli>=1.0

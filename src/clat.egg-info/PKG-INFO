@@ -1,0 +1,15 @@
+Metadata-Version: 2.4
+Name: clat
+Version: 0.3.0
+Summary: Colin's LaTeX Tidy — somewhere between a clang and a splat
+Author: Colin Caprani
+License-Expression: MIT
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Text Processing :: Markup :: LaTeX
+Classifier: Programming Language :: Python :: 3
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: rich
+Requires-Dist: tomli>=1.0; python_version < "3.11"

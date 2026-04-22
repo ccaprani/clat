@@ -1,0 +1,2 @@
+[console_scripts]
+clat = clat.cli:main
