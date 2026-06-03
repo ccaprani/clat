@@ -24,8 +24,14 @@ Requires Python >= 3.8. On Python < 3.11, `tomli` is installed automatically.
 # Format files in place
 clat main.tex appendix.tex
 
+# Format a multi-file document by following LaTeX inputs/includes
+clat -r main.tex
+
 # Dry run (report without fixing)
 clat --check main.tex
+
+# Dry run a multi-file document
+clat --check -r main.tex
 
 # List all rules
 clat list
@@ -114,7 +120,10 @@ clat --threshold 3 main.tex
 
 ```
 clat <files...>              Format .tex files in place
+clat -r <root.tex...>        Recursively format LaTeX inputs/includes
+clat --recursive <root.tex>  Long form of -r
 clat --check <files...>      Dry run: report issues without fixing
+clat --check -r <root.tex>   Dry run a multi-file document
 clat -o out.tex in.tex       Write to a different file
 clat --threshold N <files>   Override threshold for this run
 
@@ -129,6 +138,21 @@ clat set --config path       Target a specific config file
 
 clat --version               Show version
 ```
+
+## Multi-file documents
+
+Use `-r` or `--recursive` when a root `.tex` file assembles a document from
+other source files:
+
+```bash
+clat -r main.tex
+```
+
+Recursive mode follows `\input`, `\include`, `\subfile`, `\import`,
+`\subimport`, `\includefrom`, and `\subincludefrom` commands. Paths are
+resolved relative to the file containing the command, `.tex` is appended when
+no extension is given, duplicate files are skipped, and missing `.tex` inputs
+are reported through the normal formatter output.
 
 ## How it works
 

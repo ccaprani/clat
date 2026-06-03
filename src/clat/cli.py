@@ -10,6 +10,7 @@ Issues come in three flavours:
 
 Usage:
   clat file.tex [file2.tex ...]    Format files
+  clat -r main.tex                 Format files found through LaTeX inputs
   clat --check file.tex            Dry run
   clat list                        List rules, weights, and categories
   clat set <rule#> <weight>        Set a rule weight in .clat.toml
@@ -18,6 +19,7 @@ Usage:
   clat set --reset                 Restore .clat.toml to defaults
 """
 
+import re
 import sys
 from pathlib import Path
 
@@ -52,6 +54,128 @@ def _count_changes(original, formatted):
     changes = sum(1 for a, b in zip(orig_lines, fmt_lines) if a != b)
     changes += abs(len(orig_lines) - len(fmt_lines))
     return changes
+
+
+_INCLUDE_RE = re.compile(
+    r'\\(?P<cmd>input|include|subfile)\b\*?\s*\{(?P<path>[^{}]+)\}'
+)
+_IMPORT_RE = re.compile(
+    r'\\(?P<cmd>import|subimport|includefrom|subincludefrom)\b\*?'
+    r'\s*\{(?P<dir>[^{}]+)\}\s*\{(?P<path>[^{}]+)\}'
+)
+_BARE_INPUT_RE = re.compile(r'\\input\b\s+(?P<path>[^\s{}%]+)')
+
+
+def _is_escaped(text, idx):
+    """Return True if text[idx] is escaped by an odd run of backslashes."""
+    n_backslashes = 0
+    pos = idx - 1
+    while pos >= 0 and text[pos] == '\\':
+        n_backslashes += 1
+        pos -= 1
+    return n_backslashes % 2 == 1
+
+
+def _strip_tex_comment(line):
+    """Remove a TeX comment from a single line, preserving escaped percent signs."""
+    for i, char in enumerate(line):
+        if char == '%' and not _is_escaped(line, i):
+            return line[:i]
+    return line
+
+
+def _normalise_tex_path(base_dir, raw_path, import_dir=None):
+    """Resolve a LaTeX input path relative to base_dir.
+
+    Only .tex files are returned. Commands that point at .sty, .bib, images, or
+    other non-source files are ignored.
+    """
+    raw_path = raw_path.strip().strip('"\'')
+    if not raw_path:
+        return None
+
+    path = Path(raw_path)
+    if import_dir and not path.is_absolute():
+        path = Path(import_dir.strip().strip('"\'')) / path
+
+    if path.suffix == '':
+        path = Path(f'{path}.tex')
+    if path.suffix.lower() != '.tex':
+        return None
+
+    if not path.is_absolute():
+        path = base_dir / path
+    return path.resolve()
+
+
+def _iter_tex_inputs(text, base_dir):
+    """Yield .tex files referenced by LaTeX input/include-like commands."""
+    for line in text.splitlines():
+        source = _strip_tex_comment(line)
+
+        for match in _IMPORT_RE.finditer(source):
+            path = _normalise_tex_path(
+                base_dir, match.group('path'), import_dir=match.group('dir'))
+            if path is not None:
+                yield path
+
+        for match in _INCLUDE_RE.finditer(source):
+            path = _normalise_tex_path(base_dir, match.group('path'))
+            if path is not None:
+                yield path
+
+        for match in _BARE_INPUT_RE.finditer(source):
+            path = _normalise_tex_path(base_dir, match.group('path'))
+            if path is not None:
+                yield path
+
+
+def _display_path(path):
+    """Prefer paths relative to cwd for user-facing output and formatting."""
+    cwd = Path.cwd().resolve()
+    path = Path(path).resolve()
+    try:
+        return str(path.relative_to(cwd))
+    except ValueError:
+        return str(path)
+
+
+def discover_tex_files(files):
+    """Return files plus recursively discovered LaTeX inputs/includes.
+
+    Roots are visited in the order provided. Dependencies are depth-first,
+    de-duplicated, and resolved relative to the file that references them.
+    Missing .tex dependencies are included in the returned list so the normal
+    formatter path reports them as missing.
+    """
+    discovered = []
+    seen = set()
+
+    def visit(path):
+        path = Path(path)
+        if path.suffix == '':
+            path = Path(f'{path}.tex')
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        path = path.resolve()
+
+        if path in seen:
+            return
+        seen.add(path)
+        discovered.append(path)
+
+        try:
+            text = path.read_text()
+        except OSError:
+            return
+
+        for child in _iter_tex_inputs(text, path.parent):
+            visit(child)
+
+    for file in files:
+        visit(file)
+
+    return [_display_path(path) for path in discovered]
 
 
 def _print_header():
@@ -255,6 +379,8 @@ def _cmd_format(argv):
                         help='Output file (single input only)')
     parser.add_argument('--check', action='store_true',
                         help='Report without fixing')
+    parser.add_argument('-r', '--recursive', action='store_true',
+                        help='Recursively format files referenced by LaTeX inputs')
     parser.add_argument('--config', help='Path to .clat.toml')
     parser.add_argument('--threshold', type=int, default=None,
                         help='Override threshold for this run')
@@ -264,6 +390,8 @@ def _cmd_format(argv):
 
     if args.output and len(args.files) > 1:
         parser.error('-o/--output only works with a single input file')
+    if args.output and args.recursive:
+        parser.error('-o/--output cannot be used with -r/--recursive')
 
     config = load_config(args.config)
     if args.threshold is not None:
@@ -271,6 +399,9 @@ def _cmd_format(argv):
 
     if not args.files:
         parser.error('no .tex files specified')
+
+    if args.recursive:
+        args.files = discover_tex_files(args.files)
 
     _print_header()
 
