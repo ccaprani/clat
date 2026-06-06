@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "clat"
-version = "0.3.0"
+name = "clat-tidy"
+version = "0.4.0"
 description = "Colin's LaTeX Tidy — somewhere between a clang and a splat"
 readme = "README.md"
 license = "MIT"
@@ -19,6 +19,18 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Text Processing :: Markup :: LaTeX",
     "Programming Language :: Python :: 3",
+]
+
+[project.urls]
+Homepage = "https://ccaprani.github.io/clat/"
+Documentation = "https://ccaprani.github.io/clat/"
+Repository = "https://github.com/ccaprani/clat"
+Issues = "https://github.com/ccaprani/clat/issues"
+
+[project.optional-dependencies]
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.25",
 ]
 
 [project.scripts]

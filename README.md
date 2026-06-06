@@ -2,6 +2,8 @@
 
 Colin's LaTeX Tidy -- somewhere between a clang and a splat.
 
+📖 **Documentation:** <https://ccaprani.github.io/clat/>
+
 A configurable LaTeX source formatter with opinions.
 Every rule has a weight; you set a threshold.
 What happens depends on the combination:
@@ -19,6 +21,15 @@ In the "Aeolus" episode of *Ulysses* -- "How a great daily organ is turned out" 
 So `clat` is meant to sound a little like that composing-room racket: a small, opinionated machine for turning untidy copy into clean type.
 
 ## Install
+
+```
+pip install clat-tidy
+```
+
+The command is `clat`. (The distribution is published as `clat-tidy` because
+`clat` was already taken on PyPI; everything you type is still `clat`.)
+
+For local development:
 
 ```
 pip install -e .
