@@ -1,17 +1,21 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ccaprani/clat/main/docs/assets/clat-logo.png" width="120" alt="clat logo">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ccaprani/clat/main/docs/assets/wordmark-dark.png">
+    <img src="https://raw.githubusercontent.com/ccaprani/clat/main/docs/assets/wordmark-light.png" width="340" alt="clat — Opinionated LaTeX Tidy">
+  </picture>
 </p>
 
-# clat
+<p align="center">
+  <a href="https://pypi.org/project/clat-tidy/"><img src="https://img.shields.io/pypi/v/clat-tidy?color=3949ab" alt="PyPI"></a>
+  <a href="https://pypi.org/project/clat-tidy/"><img src="https://img.shields.io/pypi/pyversions/clat-tidy" alt="Python versions"></a>
+  <a href="https://ccaprani.github.io/clat/"><img src="https://github.com/ccaprani/clat/actions/workflows/docs.yml/badge.svg" alt="Docs"></a>
+  <a href="https://github.com/ccaprani/clat/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
+</p>
 
-[![PyPI](https://img.shields.io/pypi/v/clat-tidy?color=3949ab)](https://pypi.org/project/clat-tidy/)
-[![Python versions](https://img.shields.io/pypi/pyversions/clat-tidy)](https://pypi.org/project/clat-tidy/)
-[![Docs](https://github.com/ccaprani/clat/actions/workflows/docs.yml/badge.svg)](https://ccaprani.github.io/clat/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/ccaprani/clat/blob/main/LICENSE)
-
-Colin's LaTeX Tidy -- somewhere between a clang and a splat.
-
-📖 **Documentation:** <https://ccaprani.github.io/clat/>
+<p align="center">
+  <em>Colin's LaTeX Tidy — somewhere between a clang and a splat.</em><br>
+  📖 <a href="https://ccaprani.github.io/clat/">Documentation</a>
+</p>
 
 A configurable LaTeX source formatter with opinions.
 Every rule has a weight; you set a threshold.

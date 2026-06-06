@@ -2,7 +2,7 @@
   <title>clat</title>
   <!-- three tidied lines of type, coloured clang / clunk / splat; transparent
        background so it sits cleanly on the coloured site header -->
-  <rect x="8" y="17" width="48" height="8" rx="4" fill="#26c6da"/>
-  <rect x="8" y="28" width="31" height="8" rx="4" fill="#ef5350"/>
-  <rect x="8" y="39" width="41" height="8" rx="4" fill="#ffca28"/>
+  <rect x="6" y="12" width="52" height="11" rx="5.5" fill="#26c6da"/>
+  <rect x="6" y="26.5" width="34" height="11" rx="5.5" fill="#ef5350"/>
+  <rect x="6" y="41" width="45" height="11" rx="5.5" fill="#ffca28"/>
 </svg>
