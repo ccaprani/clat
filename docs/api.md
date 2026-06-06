@@ -56,3 +56,21 @@ result = texfmt(source, config=config)
 ::: clat.DEFAULT_THRESHOLD
     options:
       show_if_no_docstring: true
+
+---
+
+## Multi-file discovery
+
+For multi-file documents, `clat.cli.discover_tex_files` expands a list of root
+files into the full, ordered, de-duplicated set of `.tex` files reachable
+through `\input`/`\include`-style commands — the same traversal the `-r` flag
+uses. See [Multi-file documents](multi-file.md).
+
+```python
+from clat.cli import discover_tex_files
+
+for path in discover_tex_files(["main.tex"]):
+    print(path)
+```
+
+::: clat.cli.discover_tex_files

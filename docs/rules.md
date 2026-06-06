@@ -268,3 +268,30 @@ suggest moving it after some introductory text.
 Every rule's weight is configurable, which moves it between the clang / clunk /
 splat categories — or, at weight `0` relative to a high threshold, effectively
 mutes it. See [Configuration](configuration.md).
+
+!!! info "Configuration tunes the built-in rules; it doesn't add new ones"
+    `.clat.toml` only adjusts the **weight** of the rules listed above and the
+    **threshold**. The set of rules itself is fixed in code — there's no way to
+    define a brand-new rule from a config file.
+
+## Suggesting a new rule
+
+This list is meant to grow. If there's a tidy-up you'd like clat to make — or a
+problem you'd like it to catch — that isn't covered above, please **suggest it**:
+
+- :material-github: Open an issue at
+  [github.com/ccaprani/clat/issues](https://github.com/ccaprani/clat/issues).
+
+A good rule suggestion includes:
+
+- **What it should do** — a one-line description, the way the table above reads.
+- **A before/after example** (for a fixable rule) or an example of what should
+  be **flagged** (for a detect-only rule).
+- **Whether it's auto-fixable** — can the change be made unambiguously, or can
+  clat only point at the problem?
+- **Edge cases** it should *not* touch (verbatim blocks, comments, math, …).
+
+Pull requests are welcome too — each rule is a small function in
+`src/clat/rules.py` registered in the `RULES` list, with tests in
+`tests/test_rules.py`. The [Python API](api.md) page documents the `Rule`
+structure.

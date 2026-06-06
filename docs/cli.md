@@ -5,7 +5,10 @@ The `clat` command has three forms: the default **format** command, plus the
 
 ```text
 clat <files...>              Format .tex files in place
+clat -r <root.tex...>        Recursively format LaTeX inputs/includes
+clat --recursive <root.tex>  Long form of -r
 clat --check <files...>      Dry run: report issues without fixing
+clat --check -r <root.tex>   Dry run a multi-file document
 clat -o out.tex in.tex       Write to a different file
 clat --threshold N <files>   Override threshold for this run
 
@@ -35,6 +38,7 @@ rewritten **in place**; a file is only touched if something actually changes.
 | Option | Description |
 |--------|-------------|
 | `files...`            | One or more `.tex` files to format. |
+| `-r`, `--recursive`   | Follow `\input`/`\include`-style commands and also format every `.tex` file they pull in. See [Multi-file documents](multi-file.md). Cannot be combined with `-o`. |
 | `-o`, `--output PATH` | Write output to `PATH` instead of editing in place. Single input only. |
 | `--check`             | Dry run — report what would change without modifying any file. |
 | `--config PATH`       | Read configuration from `PATH` instead of the default search locations. |
@@ -46,6 +50,8 @@ rewritten **in place**; a file is only touched if something actually changes.
 ```bash
 clat main.tex                      # format in place
 clat main.tex appendix.tex         # format several files
+clat -r main.tex                   # follow inputs/includes and format them all
+clat --check -r main.tex           # dry run the whole multi-file document
 clat --check main.tex              # dry run
 clat -o clean.tex main.tex         # write elsewhere, leave the input alone
 clat --threshold 3 main.tex        # one-off stricter run

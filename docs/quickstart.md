@@ -17,6 +17,18 @@ clat main.tex appendix.tex sections/*.tex
 Each fixable rule whose weight meets the threshold is applied, and clat prints
 a short report of what it did.
 
+## Format a whole document
+
+If your document is split across files with `\input` and `\include`, point clat
+at the root file with `-r` and it will follow those references and format every
+`.tex` file in the tree:
+
+```bash
+clat -r main.tex
+```
+
+See [Multi-file documents](multi-file.md) for the details.
+
 ## Look before you leap
 
 Not ready to rewrite anything? Use `--check` for a dry run. clat reports what

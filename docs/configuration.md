@@ -3,6 +3,12 @@
 `clat` reads its configuration from a TOML file. Two settings control
 everything: the **threshold** and each rule's **weight**.
 
+!!! note "Config tunes existing rules — it doesn't add new ones"
+    Editing `.clat.toml` adjusts the weight of clat's [built-in
+    rules](rules.md) and the threshold; it can't introduce a rule that doesn't
+    already exist. Got an idea for a rule that isn't there? See [Suggesting a
+    new rule](rules.md#suggesting-a-new-rule).
+
 ## Where config is read from
 
 clat looks in this order and uses the first file it finds:
