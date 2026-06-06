@@ -95,7 +95,7 @@ Edit the configuration file (default `./.clat.toml`).
 
 | Option | Description |
 |--------|-------------|
-| `<rule#> <weight>` | Set the weight (1–10) of the rule with the given number. |
+| `<rule#> <weight>` | Set the weight (0–10) of the rule with the given number; 0 disables it. |
 | `--threshold N`    | Set the threshold (1–10). |
 | `--init`           | Create `.clat.toml` with defaults. Refuses to overwrite an existing file. |
 | `--reset`          | Overwrite `.clat.toml` with defaults. |

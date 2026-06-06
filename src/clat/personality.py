@@ -6,7 +6,7 @@ Each category is a list; the CLI picks one at random per invocation.
 Three categories of issue:
   clang — auto-fixed (weight >= threshold, fixable)
   clunk — needs manual attention (weight >= threshold, NOT fixable)
-  splat — advisory (weight < threshold)
+  splat — advisory (0 < weight < threshold)
 """
 
 import random

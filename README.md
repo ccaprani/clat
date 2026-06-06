@@ -19,11 +19,13 @@
 
 A configurable LaTeX source formatter with opinions.
 Every rule has a weight; you set a threshold.
-What happens depends on the combination:
+A weight of `0` disables a rule. What happens otherwise depends on the
+combination:
 
 - **clang** -- weight >= threshold *and* fixable: auto-fixed
 - **clunk** -- weight >= threshold *and* not fixable: needs your attention
-- **splat** -- weight < threshold: advisory, take it or leave it
+- **splat** -- 0 < weight < threshold: advisory, take it or leave it
+- **off** -- weight <= 0: disabled
 
 ## Why "clat"?
 
@@ -61,7 +63,7 @@ For example, clat can:
 - Merge stray `\label`s onto their `\section` lines
 - Split prose to one sentence per line
 - Replace `{\bf text}` with `\textbf{text}`
-- Convert `\(...\)` to `$...$` and `\[...\]` to `$$...$$`
+- Configure inline and display math delimiter preferences separately
 - Ensure `~` before `\ref`, `\cite`, and similar commands
 - Replace `...` with `\dots`
 - Normalise number-unit spacing (`100\,kN`)
@@ -78,9 +80,10 @@ tex-fmt main.tex    # indentation, line wrapping
 clat main.tex       # style rules
 ```
 
-The weight/threshold system (clang/clunk/splat) also gives you granular control
-over which rules auto-fix, which flag for manual review, and which are just
-advisory noise — something the existing tools don't offer.
+The weight/threshold system (clang/clunk/splat/off) also gives you granular
+control over which rules auto-fix, which flag for manual review, which are just
+advisory noise, and which are disabled — something the existing tools don't
+offer.
 
 ## Install
 
@@ -134,16 +137,17 @@ Run `clat list` to see all rules with their numbers, weights, and current catego
 |  5 | equation_punctuation  |    6    |   yes   | Add trailing comma or period to display equations          |
 |  6 | float_indentation     |    5    |   yes   | Tab-indent content inside figure/table/list environments   |
 |  7 | one_sentence_per_line |    8    |   yes   | Split sentences onto individual lines                      |
-|  8 | math_delimiters       |    5    |   yes   | Replace `\(...\)` with `$...$` and `\[...\]` with `$$...$$`|
-|  9 | tilde_before_refs     |    7    |   yes   | Ensure `~` before `\ref`, `\cite` etc.                     |
-| 10 | number_unit_spacing   |    6    |   yes   | Normalise number-unit spacing (`100\,kN`)                  |
-| 11 | old_font_commands     |    5    |   yes   | Replace `{\bf text}` with `\textbf{text}` etc.             |
-| 12 | ellipsis              |    4    |   yes   | Replace `...` with `\dots`                                 |
-| 13 | ordinal_suffixes      |    8    |   yes   | Convert superscript ordinals to plain text (`1st`, `2nd`)  |
-| 14 | long_file             |    3    |   no    | Warn if file exceeds 2000 lines                            |
-| 15 | hardcoded_refs        |    6    |   no    | Detect `Figure 3` instead of `\cref{...}`                  |
-| 16 | manual_sizing         |    3    |   no    | Detect `\big`, `\Big` etc.                                 |
-| 17 | float_after_heading   |    4    |   no    | Detect float placed directly after a heading               |
+|  8 | math_delimiters_inline  |    5    |   yes   | Replace `\(...\)` with `$...$`                         |
+|  9 | tilde_before_refs        |    7    |   yes   | Ensure `~` before `\ref`, `\cite` etc.                  |
+| 10 | number_unit_spacing      |    6    |   yes   | Normalise number-unit spacing (`100\,kN`)               |
+| 11 | old_font_commands        |    5    |   yes   | Replace `{\bf text}` with `\textbf{text}` etc.          |
+| 12 | ellipsis                 |    4    |   yes   | Replace `...` with `\dots`                              |
+| 13 | ordinal_suffixes         |    8    |   yes   | Convert superscript ordinals to plain text (`1st`, `2nd`)|
+| 14 | long_file                |    3    |   no    | Warn if file exceeds 2000 lines                         |
+| 15 | hardcoded_refs           |    6    |   no    | Detect `Figure 3` instead of `\cref{...}`               |
+| 16 | manual_sizing            |    3    |   no    | Detect `\big`, `\Big` etc.                              |
+| 17 | float_after_heading      |    4    |   no    | Detect float placed directly after a heading            |
+| 18 | math_delimiters_display |    0    |   yes   | Replace `\[...\]` with `$$...$$`                       |
 
 ## Configuration
 
@@ -165,7 +169,7 @@ threshold = 5
 labels_inline         =  8  # Merge \label onto the same line as \section (fixable)
 decorative_comments   =  6  # Strip decorative comment separators (fixable)
 heading_spacing       =  7  # Two blank lines before headings, none after (fixable)
-# ... all 17 rules listed
+# ... all 18 rules listed
 ```
 
 Edit the file directly, or use the CLI:
@@ -181,7 +185,8 @@ clat set --threshold 8
 ```bash
 # By rule number (see clat list)
 clat set 12 9     # set rule 12 (ellipsis) to weight 9
-clat set 14 2     # demote hardcoded refs to a splat
+clat set 15 2     # demote hardcoded refs to a splat
+clat set 18 5     # enable display math delimiter conversion
 ```
 
 ### Reset to defaults
@@ -212,7 +217,7 @@ clat --threshold N <files>   Override threshold for this run
 clat list                    List all rules with weights and categories
 clat list --config path      Use a specific config file
 
-clat set <rule#> <weight>    Set a rule weight in .clat.toml
+clat set <rule#> <weight>    Set a rule weight in .clat.toml (0 disables)
 clat set --threshold N       Set the threshold in .clat.toml
 clat set --init              Create .clat.toml with defaults
 clat set --reset             Restore .clat.toml to defaults
@@ -245,11 +250,13 @@ to the threshold:
 ```
 weight >= threshold + fixable     =>  clang (auto-fixed)
 weight >= threshold + NOT fixable =>  clunk (needs manual fix)
-weight <  threshold               =>  splat (advisory)
+0 < weight < threshold            =>  splat (advisory)
+weight <= 0                       =>  off (disabled)
 ```
 
 Fixable rules below threshold are still applied (the text is still fixed),
-but reported as splats rather than clangs.
+but reported as splats rather than clangs. Set a rule's weight to `0` to
+disable it entirely.
 
 ## Development
 

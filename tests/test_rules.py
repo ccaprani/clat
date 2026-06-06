@@ -11,7 +11,8 @@ from clat.rules import (
     rule5_heading_spacing,
     rule6_figure_indentation,
     rule7_strip_decorative_comments,
-    rule8_math_delimiters,
+    rule8_math_delimiters_inline,
+    rule18_math_delimiters_display,
     rule9_tilde_before_refs,
     rule10_number_unit_spacing,
     rule11_old_font_commands,
@@ -27,6 +28,7 @@ from clat.rules import (
     DEFAULT_THRESHOLD,
     _effective_weight,
     _get_rule,
+    save_config,
 )
 
 TESTS_DIR = os.path.dirname(__file__)
@@ -232,32 +234,48 @@ class TestRule7:
         assert rule7_strip_decorative_comments(src) == src
 
 
-# ── Rule 8: math delimiters ─────────────────────────────────────────
+# ── Rule 8: inline math delimiters ──────────────────────────────────
 
 class TestRule8:
     def test_inline_paren(self):
         src = 'The value \\(x\\) is positive.'
-        assert rule8_math_delimiters(src) == 'The value $x$ is positive.'
+        assert rule8_math_delimiters_inline(src) == 'The value $x$ is positive.'
 
-    def test_display_bracket(self):
+    def test_display_bracket_left_alone(self):
         src = '\\[E = mc^2\\]'
-        assert rule8_math_delimiters(src) == '$$E = mc^2$$'
+        assert rule8_math_delimiters_inline(src) == src
 
     def test_dollars_left_alone(self):
         src = 'costs \\$5 and $y = mx + b$'
-        assert rule8_math_delimiters(src) == src
+        assert rule8_math_delimiters_inline(src) == src
 
     def test_skip_comments(self):
         src = '% \\(x\\) in a comment'
-        assert rule8_math_delimiters(src) == src
-
-    def test_multiline_display(self):
-        src = '\\[\n  a = b\n\\]'
-        assert rule8_math_delimiters(src) == '$$\n  a = b\n$$'
+        assert rule8_math_delimiters_inline(src) == src
 
     def test_idempotent(self):
         src = 'Already $x$ and $$y$$.'
-        assert rule8_math_delimiters(src) == src
+        assert rule8_math_delimiters_inline(src) == src
+
+
+# ── Rule 18: display math delimiters ────────────────────────────────
+
+class TestRule18:
+    def test_display_bracket(self):
+        src = '\\[E = mc^2\\]'
+        assert rule18_math_delimiters_display(src) == '$$E = mc^2$$'
+
+    def test_multiline_display(self):
+        src = '\\[\n  a = b\n\\]'
+        assert rule18_math_delimiters_display(src) == '$$\n  a = b\n$$'
+
+    def test_inline_paren_left_alone(self):
+        src = 'The value \\(x\\) is positive.'
+        assert rule18_math_delimiters_display(src) == src
+
+    def test_idempotent(self):
+        src = 'Already $x$ and $$y$$.'
+        assert rule18_math_delimiters_display(src) == src
 
 
 # ── Rule 9: tilde before refs ───────────────────────────────────────
@@ -464,7 +482,7 @@ class TestWarnings:
 
 class TestRegistry:
     def test_all_rules_registered(self):
-        assert len(RULES) == 17
+        assert len(RULES) == 18
 
     def test_rule_ids_unique(self):
         ids = [r.id for r in RULES]
@@ -478,9 +496,18 @@ class TestRegistry:
     def test_get_rule_missing(self):
         assert _get_rule('nonexistent') is None
 
+    def test_math_split_keeps_existing_rule_numbers_stable(self):
+        assert _get_rule('math_delimiters_inline').num == 8
+        assert _get_rule('tilde_before_refs').num == 9
+        assert _get_rule('float_after_heading').num == 17
+        assert _get_rule('math_delimiters_display').num == 18
+
+    def test_display_math_delimiters_default_off(self):
+        assert _get_rule('math_delimiters_display').weight == 0
+
     def test_fixable_count(self):
         fixable = [r for r in RULES if r.fixable]
-        assert len(fixable) == 13
+        assert len(fixable) == 14
 
     def test_unfixable_count(self):
         unfixable = [r for r in RULES if not r.fixable]
@@ -536,12 +563,53 @@ class TestThreshold:
         config = {'threshold': 5, 'weights': {'ellipsis': 9}}
         assert _effective_weight(r, config) == 9
 
+    def test_legacy_math_delimiters_weight_applies_to_split_rules(self):
+        """Old math_delimiters config should still affect both split rules."""
+        config = {'threshold': 5, 'weights': {'math_delimiters': 9}}
+        assert _effective_weight(_get_rule('math_delimiters_inline'), config) == 9
+        assert _effective_weight(_get_rule('math_delimiters_display'), config) == 9
+
+    def test_explicit_split_math_weight_overrides_legacy_weight(self):
+        config = {
+            'threshold': 5,
+            'weights': {'math_delimiters': 9, 'math_delimiters_display': 0},
+        }
+        assert _effective_weight(_get_rule('math_delimiters_inline'), config) == 9
+        assert _effective_weight(_get_rule('math_delimiters_display'), config) == 0
+
+    def test_save_config_migrates_legacy_math_delimiters_weight(self, tmp_path):
+        config = {'threshold': 5, 'weights': {'math_delimiters': 0}}
+        path = tmp_path / '.clat.toml'
+        save_config(config, path)
+        saved = path.read_text()
+        assert 'math_delimiters_inline  =  0' in saved
+        assert 'math_delimiters_display =  0' in saved
+
     def test_text_still_fixed_below_threshold(self):
         """Fixable rules below threshold should still fix the text."""
         src = '\\section{Foo}\n\\label{sec:foo}'
         config = {'threshold': 10, 'weights': {}}
         result = texfmt(src, 'test.tex', config=config)
         assert '\\section{Foo}\\label{sec:foo}' in result.text
+
+    def test_weight_zero_disables_fixable_rule(self):
+        src = 'inline \\(x\\) and display \\[ y \\]'
+        config = {'threshold': 5, 'weights': {'math_delimiters_display': 0}}
+        result = texfmt(src, 'test.tex', config=config)
+        assert result.text == 'inline $x$ and display \\[ y \\]'
+        assert 'math_delimiters_display' not in [r.id for r, _ in result.clangs]
+
+    def test_display_math_delimiters_default_off_in_texfmt(self):
+        src = 'inline \\(x\\) and display \\[ y \\]'
+        result = texfmt(src, 'test.tex')
+        assert result.text == 'inline $x$ and display \\[ y \\]'
+
+    def test_display_math_delimiters_can_be_enabled(self):
+        src = 'display \\[ y \\]'
+        config = {'threshold': 5, 'weights': {'math_delimiters_display': 5}}
+        result = texfmt(src, 'test.tex', config=config)
+        assert result.text == 'display $$ y $$'
+        assert 'math_delimiters_display' in [r.id for r, _ in result.clangs]
 
     def test_result_type(self):
         result = texfmt('hello', 'test.tex')

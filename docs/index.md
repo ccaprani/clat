@@ -21,21 +21,22 @@ The installed command is `clat`. (The PyPI distribution is `clat-tidy` because
 
 ## clang, clunk, splat
 
-Every rule has a **weight** (1–10). You set a single **threshold**. What
+Every rule has a **weight** (0–10; 0 disables). You set a single **threshold**. What
 happens to a given rule depends on the combination of its weight, the
 threshold, and whether the rule is auto-fixable:
 
 | Outcome   | Condition                                | Meaning                          |
 |-----------|------------------------------------------|----------------------------------|
 | **clang** | weight ≥ threshold *and* fixable         | auto-fixed in place              |
-| **clunk** | weight ≥ threshold *and* not fixable     | needs your attention            |
-| **splat** | weight < threshold                       | advisory — take it or leave it   |
+| **clunk** | weight ≥ threshold *and* not fixable     | needs your attention             |
+| **splat** | 0 < weight < threshold                   | advisory — take it or leave it   |
+| **off**   | weight ≤ 0                               | disabled                         |
 
 !!! note "Fixable splats are still fixed"
     A fixable rule that falls *below* the threshold still rewrites the text —
     it's just reported as a quiet **splat** rather than a loud **clang**. The
     threshold controls how much noise clat makes, not whether safe fixes
-    happen.
+    happen. Set a rule's weight to `0` to disable it entirely.
 
 ## Why "clat"?
 
@@ -70,7 +71,7 @@ For example, clat can:
 - Merge stray `\label`s onto their `\section` lines
 - Split prose to one sentence per line
 - Replace `{\bf text}` with `\textbf{text}`
-- Convert `\(...\)` to `$...$` and `\[...\]` to `$$...$$`
+- Configure inline and display math delimiter preferences separately
 - Ensure `~` before `\ref`, `\cite`, and similar commands
 - Replace `...` with `\dots`
 - Normalise number-unit spacing (`100\,kN`)
@@ -87,9 +88,10 @@ tex-fmt main.tex    # indentation, line wrapping
 clat main.tex       # style rules
 ```
 
-The weight/threshold system (clang/clunk/splat) also gives you granular control
-over which rules auto-fix, which flag for manual review, and which are just
-advisory noise — something the existing tools don't offer.
+The weight/threshold system (clang/clunk/splat/off) also gives you granular
+control over which rules auto-fix, which flag for manual review, which are just
+advisory noise, and which are disabled — something the existing tools don't
+offer.
 
 [latexindent]: https://ctan.org/pkg/latexindent
 [tex-fmt]: https://github.com/wgunderwood/tex-fmt
@@ -109,7 +111,7 @@ advisory noise — something the existing tools don't offer.
 
 -   :material-format-list-numbered: **[Rules](rules.md)**
 
-    All 17 rules, what each does, and before/after examples.
+    All 18 rules, what each does, and before/after examples.
 
 -   :material-cog: **[Configuration](configuration.md)**
 

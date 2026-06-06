@@ -36,7 +36,8 @@ its default weight:
 # Categories are determined at runtime:
 #   clang:  weight >= threshold AND fixable     (auto-fixed)
 #   clunk:  weight >= threshold AND NOT fixable  (needs your attention)
-#   splat:  weight <  threshold                  (advisory)
+#   splat:  0 < weight < threshold               (advisory)
+#   off:    weight <= 0                          (disabled)
 
 threshold = 5
 
@@ -44,7 +45,7 @@ threshold = 5
 labels_inline         =  8  # Merge \label onto the same line as \section (fixable)
 decorative_comments   =  6  # Strip decorative comment separators (fixable)
 heading_spacing       =  7  # Two blank lines before headings, none after (fixable)
-# ... all 17 rules listed
+# ... all 18 rules listed
 ```
 
 `clat set --init` refuses to overwrite an existing `.clat.toml`. To start over,
@@ -58,7 +59,8 @@ weight is compared against it:
 ```text
 weight >= threshold  AND fixable      ->  clang  (auto-fixed)
 weight >= threshold  AND NOT fixable  ->  clunk  (needs your attention)
-weight <  threshold                   ->  splat  (advisory)
+0 < weight < threshold                ->  splat  (advisory)
+weight <= 0                           ->  off    (disabled)
 ```
 
 Lower the threshold to make more rules fire loudly; raise it so only your
@@ -68,11 +70,11 @@ highest-priority rules do.
 clat set --threshold 8
 ```
 
-!!! note "Fixable rules below the threshold still apply"
+!!! note "Fixable splats still apply; weight 0 turns rules off"
     A fixable rule under the threshold **still rewrites your text** — it is
     simply reported as a quiet splat instead of a clang. The threshold tunes
-    reporting *noise*, not whether safe fixes happen. Setting a fixable rule's
-    weight below the threshold demotes it to a (still-applied) splat, not off.
+    reporting *noise*, not whether safe fixes happen. To stop a rule from
+    running, set its weight to `0`.
 
 ## Set a rule weight
 
@@ -81,6 +83,7 @@ By rule number (see `clat list` for the numbers):
 ```bash
 clat set 12 9     # set rule 12 (ellipsis) to weight 9
 clat set 14 2     # demote rule 14 (long_file) to a splat
+clat set 18 5     # enable display math delimiter conversion
 ```
 
 Or edit `.clat.toml` directly under `[weights]`, keyed by the rule's **id**:
@@ -91,9 +94,9 @@ ellipsis  = 9
 long_file = 2
 ```
 
-Weights run **1–10**. A weight at or above the threshold promotes a rule to a
-clang (fixable) or clunk (detect-only); below the threshold it becomes a
-splat.
+Weights run **0–10**. A weight of `0` disables a rule. A positive weight at or
+above the threshold promotes a rule to a clang (fixable) or clunk (detect-only);
+below the threshold it becomes a splat.
 
 ## Reset to defaults
 

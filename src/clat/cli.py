@@ -7,13 +7,14 @@ Issues come in three flavours:
   clang — auto-fixed
   clunk — clat bashed into something immovable; needs your attention
   splat — advisory; take it or leave it
+  off   — disabled (weight <= 0)
 
 Usage:
   clat file.tex [file2.tex ...]    Format files
   clat -r main.tex                 Format files found through LaTeX inputs
   clat --check file.tex            Dry run
   clat list                        List rules, weights, and categories
-  clat set <rule#> <weight>        Set a rule weight in .clat.toml
+  clat set <rule#> <weight>        Set a rule weight in .clat.toml (0 disables)
   clat set --threshold N           Set the threshold
   clat set --init                  Create .clat.toml with defaults
   clat set --reset                 Restore .clat.toml to defaults
@@ -294,7 +295,9 @@ def _cmd_list(argv):
 
     for r in sorted(RULES, key=lambda r: r.num):
         w = _effective_weight(r, config)
-        if w >= threshold and r.fixable:
+        if w <= 0:
+            cat, style = 'off', 'dim'
+        elif w >= threshold and r.fixable:
             cat, style = 'clang', 'bold cyan'
         elif w >= threshold and not r.fixable:
             cat, style = 'clunk', 'bold red'
@@ -321,7 +324,7 @@ def _cmd_set(argv):
     parser.add_argument('rule_num', nargs='?', type=int,
                         help='Rule number (see clat list)')
     parser.add_argument('weight', nargs='?', type=int,
-                        help='Weight to assign (1–10)')
+                        help='Weight to assign (0–10; 0 disables)')
     parser.add_argument('--threshold', type=int, default=None,
                         help='Set the threshold (1–10)')
     parser.add_argument('--init', action='store_true',
@@ -367,7 +370,9 @@ def _cmd_set(argv):
         save_config(config, dest)
         w = args.weight
         threshold = config['threshold']
-        if w >= threshold and rule.fixable:
+        if w <= 0:
+            cat = 'off'
+        elif w >= threshold and rule.fixable:
             cat = 'clang'
         elif w >= threshold:
             cat = 'clunk'

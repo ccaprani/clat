@@ -1,12 +1,13 @@
 """
 clat formatting rules.
 
-Every rule has a number, a default weight (1–10), and a fixable flag.
+Every rule has a number, a default weight (1–10; 0 disables), and a fixable flag.
 At runtime, the user's threshold decides what happens:
 
   clang:  weight >= threshold AND fixable      → auto-fixed
   clunk:  weight >= threshold AND NOT fixable   → must fix manually
-  splat:  weight <  threshold                   → advisory
+  splat:  0 < weight < threshold                → advisory
+  off:    weight <= 0                           → disabled
 
 Run ``clat list`` to see all rules. Configure via ``.clat.toml``
 or ``clat set <rule#> <weight>``.
@@ -127,7 +128,7 @@ class Rule:
     name : str      — human-readable description
     fn : callable   — fix function  f(text) -> text           (fixable=True)
                        or warn function  f(text, filename) -> [(file, line, msg)]
-    weight : int    — default severity 1–10
+    weight : int    — default severity 1–10; 0 disables the rule
     fixable : bool  — True if clat can auto-fix this
     order : int     — execution order (lower = earlier); fixes run before warns
     """
@@ -374,18 +375,14 @@ def rule7_strip_decorative_comments(text):
     return '\n'.join(line for line in lines if not deco_re.match(line))
 
 
-def rule8_math_delimiters(text):
-    """\\(...\\) -> $...$, \\[...\\] -> $$...$$.
+def rule8_math_delimiters_inline(text):
+    """\\(...\\) -> $...$.
 
-    Converts the verbose LaTeX2e math delimiters to the short dollar form,
-    which is the convention preferred in most structural-engineering
-    manuscripts. Display-math \\[...\\] may span lines and is handled with
-    DOTALL; inline \\(...\\) is matched within a single line so that an
-    unbalanced ``\\(`` does not greedily consume across paragraphs.
+    Converts the verbose LaTeX2e inline math delimiters to the short dollar
+    form. Matched within a single line so that an unbalanced ``\\(`` does not
+    greedily consume across paragraphs. Comment lines and verbatim starts are
+    skipped.
     """
-    # Display math first; it can span newlines.
-    text = re.sub(r'\\\[(.*?)\\\]', r'$$\1$$', text, flags=re.DOTALL)
-    # Inline math: skip comment lines and verbatim blocks.
     lines = text.split('\n')
     result = []
     for line in lines:
@@ -395,6 +392,16 @@ def rule8_math_delimiters(text):
             continue
         result.append(re.sub(r'\\\((.*?)\\\)', r'$\1$', line))
     return '\n'.join(result)
+
+
+def rule18_math_delimiters_display(text):
+    """\\[...\\] -> $$...$$.
+
+    Converts the verbose LaTeX2e display-math delimiters to the short
+    double-dollar form. Display math may span lines and is handled with
+    DOTALL.
+    """
+    return re.sub(r'\\\[(.*?)\\\]', r'$$\1$$', text, flags=re.DOTALL)
 
 
 def rule9_tilde_before_refs(text):
@@ -628,7 +635,7 @@ RULES = [
     Rule( 5, 'equation_punctuation', 'Add trailing comma or period to display equations',         rule4_equation_punctuation,      weight=6, fixable=True,  order=50),
     Rule( 6, 'float_indentation',    'Tab-indent content inside figure/table/list environments',  rule6_figure_indentation,        weight=5, fixable=True,  order=60),
     Rule( 7, 'one_sentence_per_line','Split sentences onto individual lines',                     rule3_one_sentence_per_line,     weight=8, fixable=True,  order=70),
-    Rule( 8, 'math_delimiters',      'Replace \\(...\\) with $...$ and \\[...\\] with $$...$$',   rule8_math_delimiters,           weight=5, fixable=True,  order=80),
+    Rule( 8, 'math_delimiters_inline','Replace \\(...\\) with $...$',                           rule8_math_delimiters_inline,   weight=5, fixable=True,  order=80),
     Rule( 9, 'tilde_before_refs',    'Ensure non-breaking space before \\ref, \\cite etc.',       rule9_tilde_before_refs,         weight=7, fixable=True,  order=90),
     Rule(10, 'number_unit_spacing',  'Normalise number-unit spacing (100\\,kN)',                 rule10_number_unit_spacing,      weight=6, fixable=True,  order=100),
     Rule(11, 'old_font_commands',    'Replace {\\bf text} with \\textbf{text} etc.',              rule11_old_font_commands,        weight=5, fixable=True,  order=110),
@@ -639,6 +646,8 @@ RULES = [
     Rule(15, 'hardcoded_refs',       'Detect "Figure 3" instead of \\cref{...}',                  warn_hardcoded_refs,             weight=6, fixable=False, order=210),
     Rule(16, 'manual_sizing',        'Detect \\big, \\Big etc. (prefer \\left/\\right)',          warn_manual_sizing,              weight=3, fixable=False, order=220),
     Rule(17, 'float_after_heading',  'Detect float placed directly after a heading',              warn_float_after_heading,        weight=4, fixable=False, order=230),
+    # New rules are appended so existing numeric configuration remains stable.
+    Rule(18, 'math_delimiters_display','Replace \\[...\\] with $$...$$',                         rule18_math_delimiters_display, weight=0, fixable=True,  order=85),
 ]
 
 
@@ -691,9 +700,21 @@ def load_config(path=None):
     return {'threshold': DEFAULT_THRESHOLD, 'weights': {}}
 
 
+_LEGACY_WEIGHT_IDS = {
+    'math_delimiters_inline': 'math_delimiters',
+    'math_delimiters_display': 'math_delimiters',
+}
+
+
 def _effective_weight(rule, config):
     """Return the weight for a rule, with config override if present."""
-    return config['weights'].get(rule.id, rule.weight)
+    weights = config['weights']
+    if rule.id in weights:
+        return weights[rule.id]
+    legacy_id = _LEGACY_WEIGHT_IDS.get(rule.id)
+    if legacy_id and legacy_id in weights:
+        return weights[legacy_id]
+    return rule.weight
 
 
 def generate_default_config():
@@ -705,7 +726,8 @@ def generate_default_config():
         '# Categories are determined at runtime:',
         '#   clang:  weight >= threshold AND fixable     (auto-fixed)',
         '#   clunk:  weight >= threshold AND NOT fixable  (needs your attention)',
-        '#   splat:  weight <  threshold                  (advisory)',
+        '#   splat:  0 < weight < threshold               (advisory)',
+        '#   off:    weight <= 0                          (disabled)',
         '',
         f'threshold = {DEFAULT_THRESHOLD}',
         '',
@@ -729,7 +751,8 @@ def save_config(config, path):
         '# Categories are determined at runtime:',
         '#   clang:  weight >= threshold AND fixable     (auto-fixed)',
         '#   clunk:  weight >= threshold AND NOT fixable  (needs your attention)',
-        '#   splat:  weight <  threshold                  (advisory)',
+        '#   splat:  0 < weight < threshold               (advisory)',
+        '#   off:    weight <= 0                          (disabled)',
         '',
         f'threshold = {config["threshold"]}',
         '',
@@ -737,7 +760,7 @@ def save_config(config, path):
     ]
     max_id = max(len(r.id) for r in RULES)
     for r in sorted(RULES, key=lambda r: r.order):
-        w = config['weights'].get(r.id, r.weight)
+        w = _effective_weight(r, config)
         tag = 'fixable' if r.fixable else 'unfixable'
         lines.append(f'{r.id:<{max_id}} = {w:>2}  # {r.name} ({tag})')
     Path(path).write_text('\n'.join(lines) + '\n')
@@ -782,6 +805,8 @@ def texfmt(text, filename='<input>', config=None):
 
     for rule in sorted_rules:
         w = _effective_weight(rule, config)
+        if w <= 0:
+            continue
 
         if rule.fixable:
             original = result.text

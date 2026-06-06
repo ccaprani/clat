@@ -14,8 +14,9 @@ Pass as many files as you like:
 clat main.tex appendix.tex sections/*.tex
 ```
 
-Each fixable rule whose weight meets the threshold is applied, and clat prints
-a short report of what it did.
+Each enabled fixable rule is applied, and clat prints a short report of what it
+did. The threshold controls whether fixes are reported as clangs or quieter
+splats; weight `0` disables a rule.
 
 ## Format a whole document
 
@@ -71,8 +72,8 @@ clat v0.4.0  …
 ```
 
 A `✓` marks a fixable rule, `✗` an unfixable (detect-only) one. The middle
-column is the live category — **clang**, **clunk**, or **splat** — given your
-threshold.
+column is the live category — **clang**, **clunk**, **splat**, or **off** — given
+your threshold.
 
 ## Reading a report
 
@@ -87,6 +88,7 @@ A typical run looks like this:
 - **clangs** are the auto-fixes clat already applied.
 - **clunks** are problems clat can detect but can't fix — over to you.
 - **splats** are advisory; below your threshold, so reported but low-priority.
+- **off** rules have weight `0` and are skipped entirely.
 
 If there are any clunks or splats, `clat` exits with status **1**, so it slots
 neatly into scripts and CI.

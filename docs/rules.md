@@ -1,6 +1,6 @@
 # Rules
 
-`clat` ships with **17 rules** — 13 that it can auto-fix and 4 detect-only
+`clat` ships with **18 rules** — 14 that it can auto-fix and 4 detect-only
 checks. Run `clat list` to see them all with their current weights and
 categories.
 
@@ -13,16 +13,17 @@ categories.
 |  5 | `equation_punctuation`  |    6    |   ✓   | Add trailing comma or period to display equations          |
 |  6 | `float_indentation`     |    5    |   ✓   | Tab-indent content inside figure/table/list environments   |
 |  7 | `one_sentence_per_line` |    8    |   ✓   | Split sentences onto individual lines                       |
-|  8 | `math_delimiters`       |    5    |   ✓   | Replace `\(...\)` with `$...$` and `\[...\]` with `$$...$$` |
-|  9 | `tilde_before_refs`     |    7    |   ✓   | Ensure `~` before `\ref`, `\cite` etc.                     |
-| 10 | `number_unit_spacing`   |    6    |   ✓   | Normalise number–unit spacing (`100\,kN`)                  |
-| 11 | `old_font_commands`     |    5    |   ✓   | Replace `{\bf text}` with `\textbf{text}` etc.            |
-| 12 | `ellipsis`              |    4    |   ✓   | Replace `...` with `\dots`                                 |
-| 13 | `ordinal_suffixes`      |    8    |   ✓   | Convert superscript ordinals to plain text (`1st`, `2nd`)  |
-| 14 | `long_file`             |    3    |   ✗   | Warn if a file exceeds 2000 lines                          |
-| 15 | `hardcoded_refs`        |    6    |   ✗   | Detect `Figure 3` instead of `\cref{...}`                 |
-| 16 | `manual_sizing`         |    3    |   ✗   | Detect `\big`, `\Big` etc.                                |
-| 17 | `float_after_heading`   |    4    |   ✗   | Detect a float placed directly after a heading             |
+|  8 | `math_delimiters_inline`  |    5    |   ✓   | Replace `\(...\)` with `$...$`                         |
+|  9 | `tilde_before_refs`       |    7    |   ✓   | Ensure `~` before `\ref`, `\cite` etc.                  |
+| 10 | `number_unit_spacing`     |    6    |   ✓   | Normalise number–unit spacing (`100\,kN`)               |
+| 11 | `old_font_commands`       |    5    |   ✓   | Replace `{\bf text}` with `\textbf{text}` etc.         |
+| 12 | `ellipsis`                |    4    |   ✓   | Replace `...` with `\dots`                              |
+| 13 | `ordinal_suffixes`        |    8    |   ✓   | Convert superscript ordinals to plain text (`1st`, `2nd`)|
+| 14 | `long_file`               |    3    |   ✗   | Warn if a file exceeds 2000 lines                       |
+| 15 | `hardcoded_refs`          |    6    |   ✗   | Detect `Figure 3` instead of `\cref{...}`              |
+| 16 | `manual_sizing`           |    3    |   ✗   | Detect `\big`, `\Big` etc.                             |
+| 17 | `float_after_heading`     |    4    |   ✗   | Detect a float placed directly after a heading          |
+| 18 | `math_delimiters_display` |    0    |   ✓   | Replace `\[...\]` with `$$...$$`                      |
 
 !!! tip "Order matters"
     Fixable rules are applied in a fixed sequence (decorative comments are
@@ -151,19 +152,21 @@ This is another.
 And a third.
 ```
 
-### 8 · `math_delimiters`
+### 8 · `math_delimiters_inline`
 
-Replace the verbose LaTeX2e math delimiters with the short dollar form.
+Replace the verbose LaTeX2e inline math delimiters with the short dollar form.
+Display delimiter style is handled separately by Rule 18 so users can weight it
+independently.
 
 ```latex
 % before
-inline \(x = 1\) and display \[ y = 2 \]
+inline \(x = 1\)
 
 % after
-inline $x = 1$ and display $$ y = 2 $$
+inline $x = 1$
 ```
 
-Comment lines and `verbatim` blocks are skipped.
+Comment lines and verbatim starts are skipped.
 
 ### 9 · `tilde_before_refs`
 
@@ -232,12 +235,30 @@ the $1^{st}$ and 2\textsuperscript{nd} cases
 the 1st and 2nd cases
 ```
 
+### 18 · `math_delimiters_display`
+
+Replace display math delimiters `\[...\]` with `$$...$$`. This used to be part
+of Rule 8; it is Rule 18 so the existing 9–17 rule numbers stay stable. It is
+disabled by default because many LaTeX users prefer `\[...\]`.
+
+```latex
+% before
+\[ y = 2 \]
+
+% after
+$$ y = 2 $$
+```
+
+If you prefer `$$...$$`, set this rule's weight above `0` to enable it while
+keeping Rule 8 for inline math delimiters independent.
+
 ---
 
 ## Detect-only rules
 
 These rules cannot be auto-fixed. Above the threshold they are reported as
-**clunks** (needs your attention); below it, as **splats**.
+**clunks** (needs your attention); below it, as **splats**. At weight `0`, they
+are skipped entirely.
 
 ### 14 · `long_file`
 
@@ -266,8 +287,8 @@ suggest moving it after some introductory text.
 ## Changing rule behaviour
 
 Every rule's weight is configurable, which moves it between the clang / clunk /
-splat categories — or, at weight `0` relative to a high threshold, effectively
-mutes it. See [Configuration](configuration.md).
+splat categories. Set a rule's weight to `0` to disable it entirely. See
+[Configuration](configuration.md).
 
 !!! info "Configuration tunes the built-in rules; it doesn't add new ones"
     `.clat.toml` only adjusts the **weight** of the rules listed above and the
