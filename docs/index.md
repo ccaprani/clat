@@ -1,7 +1,7 @@
 # clat
 
 [![PyPI](https://img.shields.io/pypi/v/clat-tidy?color=3949ab)](https://pypi.org/project/clat-tidy/)
-[![Python versions](https://img.shields.io/pypi/pyversions/clat-tidy)](https://pypi.org/project/clat-tidy/)
+[![Python versions](https://img.shields.io/badge/python-3.8%2B-blue)](https://pypi.org/project/clat-tidy/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/ccaprani/clat/blob/main/LICENSE)
 
 **Colin's LaTeX Tidy** — somewhere between a clang and a splat.
@@ -50,6 +50,50 @@ editions mangle *Caprani* as *Cuprani*.
 
 So `clat` is meant to sound a little like that composing-room racket: a small,
 opinionated machine for turning untidy copy into clean type.
+
+## How clat compares
+
+The usual LaTeX formatting tools — [latexindent][latexindent], [tex-fmt][tex-fmt],
+[prettier-plugin-latex][prettier-latex] — are excellent at **indentation and line
+wrapping**. They normalise whitespace, align tables, and keep columns tidy.
+
+clat operates at a different layer. It doesn't touch indentation. Instead, it
+applies **content-aware style rules** that those tools don't cover:
+
+| What you need                          | Tool               |
+|----------------------------------------|--------------------|
+| Indentation, line wrapping, alignment  | latexindent, tex-fmt |
+| Style conventions and writing hygiene  | **clat**           |
+
+For example, clat can:
+
+- Merge stray `\label`s onto their `\section` lines
+- Split prose to one sentence per line
+- Replace `{\bf text}` with `\textbf{text}`
+- Convert `\(...\)` to `$...$` and `\[...\]` to `$$...$$`
+- Ensure `~` before `\ref`, `\cite`, and similar commands
+- Replace `...` with `\dots`
+- Normalise number-unit spacing (`100\,kN`)
+- Detect hardcoded references (`Figure 3` instead of `\cref{...}`)
+- Add trailing punctuation to display equations
+- Convert superscript ordinals (`1\textsuperscript{st}` → `1st`)
+- And more
+
+None of these are available in latexindent, tex-fmt, or prettier-plugin-latex.
+clat is **complementary** — you can (and should) run both. A typical pipeline:
+
+```bash
+tex-fmt main.tex    # indentation, line wrapping
+clat main.tex       # style rules
+```
+
+The weight/threshold system (clang/clunk/splat) also gives you granular control
+over which rules auto-fix, which flag for manual review, and which are just
+advisory noise — something the existing tools don't offer.
+
+[latexindent]: https://ctan.org/pkg/latexindent
+[tex-fmt]: https://github.com/wgunderwood/tex-fmt
+[prettier-latex]: https://github.com/siefkenj/prettier-plugin-latex
 
 ## Where to next
 

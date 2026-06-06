@@ -7,7 +7,7 @@
 
 <p align="center">
   <a href="https://pypi.org/project/clat-tidy/"><img src="https://img.shields.io/pypi/v/clat-tidy?color=3949ab" alt="PyPI"></a>
-  <a href="https://pypi.org/project/clat-tidy/"><img src="https://img.shields.io/pypi/pyversions/clat-tidy" alt="Python versions"></a>
+  <a href="https://pypi.org/project/clat-tidy/"><img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python versions"></a>
   <a href="https://ccaprani.github.io/clat/"><img src="https://github.com/ccaprani/clat/actions/workflows/docs.yml/badge.svg" alt="Docs"></a>
   <a href="https://github.com/ccaprani/clat/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
 </p>
@@ -27,11 +27,60 @@ What happens depends on the combination:
 
 ## Why "clat"?
 
-Prosaically, `clat` is Colin's LaTeX Tool. But the name also has a bit of printer's noise in it.
+Prosaically, `clat` is Colin's LaTeX Tool. But the name also has a bit of
+printer's noise in it.
 
-In the "Aeolus" episode of *Ulysses* -- "How a great daily organ is turned out" -- Bloom moves through the newspaper office amid the machinery of print: clanking, rhythmic, three-four time; thump, thump, thump. My great-great-grandfather, a Dublin printer, is mentioned there too, though some editions mangle Caprani as Cuprani.
+In the "Aeolus" episode of *Ulysses* -- "How a great daily organ is turned
+out" -- Bloom moves through the newspaper office amid the machinery of print:
+clanking, rhythmic, three-four time; thump, thump, thump. My
+great-great-grandfather, a Dublin printer, is mentioned there too, though some
+editions mangle *Caprani* as *Cuprani*.
 
-So `clat` is meant to sound a little like that composing-room racket: a small, opinionated machine for turning untidy copy into clean type.
+So `clat` is meant to sound a little like that composing-room racket: a small,
+opinionated machine for turning untidy copy into clean type.
+
+## How clat compares
+
+The usual LaTeX formatting tools —
+[latexindent](https://ctan.org/pkg/latexindent),
+[tex-fmt](https://github.com/wgunderwood/tex-fmt),
+[prettier-plugin-latex](https://github.com/siefkenj/prettier-plugin-latex) —
+are excellent at **indentation and line wrapping**. They normalise whitespace,
+align tables, and keep columns tidy.
+
+clat operates at a different layer. It doesn't touch indentation. Instead, it
+applies **content-aware style rules** that those tools don't cover:
+
+| What you need                          | Tool               |
+|----------------------------------------|--------------------|
+| Indentation, line wrapping, alignment  | latexindent, tex-fmt |
+| Style conventions and writing hygiene  | **clat**           |
+
+For example, clat can:
+
+- Merge stray `\label`s onto their `\section` lines
+- Split prose to one sentence per line
+- Replace `{\bf text}` with `\textbf{text}`
+- Convert `\(...\)` to `$...$` and `\[...\]` to `$$...$$`
+- Ensure `~` before `\ref`, `\cite`, and similar commands
+- Replace `...` with `\dots`
+- Normalise number-unit spacing (`100\,kN`)
+- Detect hardcoded references (`Figure 3` instead of `\cref{...}`)
+- Add trailing punctuation to display equations
+- Convert superscript ordinals (`1\textsuperscript{st}` → `1st`)
+- And more
+
+None of these are available in latexindent, tex-fmt, or prettier-plugin-latex.
+clat is **complementary** — you can (and should) run both. A typical pipeline:
+
+```bash
+tex-fmt main.tex    # indentation, line wrapping
+clat main.tex       # style rules
+```
+
+The weight/threshold system (clang/clunk/splat) also gives you granular control
+over which rules auto-fix, which flag for manual review, and which are just
+advisory noise — something the existing tools don't offer.
 
 ## Install
 
