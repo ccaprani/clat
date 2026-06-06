@@ -16,6 +16,7 @@ from clat.rules import (
     rule10_number_unit_spacing,
     rule11_old_font_commands,
     rule12_ellipsis,
+    rule13_ordinal_suffixes,
     warn_hardcoded_refs,
     warn_manual_sizing,
     warn_long_file,
@@ -91,6 +92,38 @@ class TestRule2:
         assert lines[1] == ''
         assert lines[2] == '\\begin{figure}'
 
+    def test_subequations_separator_wraps_outer_env(self):
+        src = (
+            'The corresponding natural frequencies are given by:\n'
+            '\\begin{subequations}\n'
+            '%\n'
+            '    \\begin{align}\n'
+            '        x &= y \\\\\n'
+            '        z &= w.\n'
+            '    \\end{align}\n'
+            '%\n'
+            '\\end{subequations}\n'
+            'Next sentence.'
+        )
+        expected = (
+            'The corresponding natural frequencies are given by:\n'
+            '%\n'
+            '\\begin{subequations}\n'
+            '    \\begin{align}\n'
+            '        x &= y \\\\\n'
+            '        z &= w.\n'
+            '    \\end{align}\n'
+            '\\end{subequations}\n'
+            '%\n'
+            'Next sentence.'
+        )
+        assert rule2_equation_separators(src) == expected
+
+    def test_starred_math_env_separator(self):
+        src = 'Some text.\n\\begin{align*}\nx &= y\n\\end{align*}\nMore text.'
+        expected = 'Some text.\n%\n\\begin{align*}\nx &= y\n\\end{align*}\n%\nMore text.'
+        assert rule2_equation_separators(src) == expected
+
 
 # ── Rule 3: one sentence per line ───────────────────────────────────
 
@@ -140,6 +173,12 @@ class TestRule5:
         assert lines[1] == ''
         assert lines[2] == ''
         assert lines[3] == '\\section{Foo}'
+
+    def test_no_blanks_between_consecutive_headings(self):
+        src = '\\section{Intro}\n\n\n\\subsection{Background}'
+        result = rule5_heading_spacing(src)
+        lines = result.split('\n')
+        assert lines == ['\\section{Intro}', '\\subsection{Background}']
 
     def test_no_blank_after(self):
         src = '\\section{Foo}\n\nSome text.'
@@ -196,20 +235,28 @@ class TestRule7:
 # ── Rule 8: math delimiters ─────────────────────────────────────────
 
 class TestRule8:
-    def test_inline_dollar(self):
-        src = 'The value $x$ is positive.'
-        assert rule8_math_delimiters(src) == 'The value \\(x\\) is positive.'
+    def test_inline_paren(self):
+        src = 'The value \\(x\\) is positive.'
+        assert rule8_math_delimiters(src) == 'The value $x$ is positive.'
 
-    def test_display_dollar(self):
-        src = '$$E = mc^2$$'
-        assert rule8_math_delimiters(src) == '\\[E = mc^2\\]'
+    def test_display_bracket(self):
+        src = '\\[E = mc^2\\]'
+        assert rule8_math_delimiters(src) == '$$E = mc^2$$'
 
-    def test_escaped_dollar(self):
-        src = 'costs \\$5 each'
+    def test_dollars_left_alone(self):
+        src = 'costs \\$5 and $y = mx + b$'
         assert rule8_math_delimiters(src) == src
 
     def test_skip_comments(self):
-        src = '% $x$ in a comment'
+        src = '% \\(x\\) in a comment'
+        assert rule8_math_delimiters(src) == src
+
+    def test_multiline_display(self):
+        src = '\\[\n  a = b\n\\]'
+        assert rule8_math_delimiters(src) == '$$\n  a = b\n$$'
+
+    def test_idempotent(self):
+        src = 'Already $x$ and $$y$$.'
         assert rule8_math_delimiters(src) == src
 
 
@@ -252,6 +299,43 @@ class TestRule10:
     def test_already_thinspace(self):
         assert rule10_number_unit_spacing('100\\,kN') == '100\\,kN'
 
+    def test_no_space_to_thinspace(self):
+        assert rule10_number_unit_spacing('100kN') == '100\\,kN'
+
+    def test_latex_spacing_to_thinspace(self):
+        assert rule10_number_unit_spacing('100\\;kN and 200\\quad kN') == \
+            '100\\,kN and 200\\,kN'
+
+    def test_no_space_bare_seconds_skipped(self):
+        assert rule10_number_unit_spacing('the 1990s') == 'the 1990s'
+
+    def test_dollar_number_tilde(self):
+        assert rule10_number_unit_spacing('$78$~kN') == '$78$\\,kN'
+
+    def test_dollar_number_space(self):
+        assert rule10_number_unit_spacing('$78$ kN') == '$78$\\,kN'
+
+    def test_dollar_number_no_space(self):
+        assert rule10_number_unit_spacing('$78$kN') == '$78$\\,kN'
+
+    def test_dollar_expression_space(self):
+        assert rule10_number_unit_spacing('$EI = 200$ MN') == '$EI = 200$\\,MN'
+
+    def test_dollar_expression_no_space(self):
+        assert rule10_number_unit_spacing('$EI = 200$MN') == '$EI = 200$\\,MN'
+
+    def test_dollar_subscript_space(self):
+        assert rule10_number_unit_spacing(r'$\mu_P^{\text{true}} = 78$ kN') \
+            == r'$\mu_P^{\text{true}} = 78$\,kN'
+
+    def test_dollar_already_thinspace(self):
+        assert rule10_number_unit_spacing('$5$\\,kN') == '$5$\\,kN'
+
+    def test_dollar_non_numeric_skipped(self):
+        # "$x$ kN" would be odd; the content doesn't end in a digit/brace
+        # so no substitution occurs and the line is left alone.
+        assert rule10_number_unit_spacing('$x$ kN') == '$x$ kN'
+
 
 # ── Rule 11: old font commands ──────────────────────────────────────
 
@@ -286,6 +370,26 @@ class TestRule12:
     def test_skip_comment(self):
         src = '% text...'
         assert rule12_ellipsis(src) == src
+
+
+# ── Rule 13: ordinal suffixes ───────────────────────────────────────
+
+class TestRule13:
+    def test_textsuperscript_ordinal(self):
+        assert rule13_ordinal_suffixes(r'the 1\textsuperscript{st} DOF') == 'the 1st DOF'
+
+    def test_inline_math_ordinal(self):
+        assert rule13_ordinal_suffixes(r'the $2^{\text{nd}}$ DOF') == 'the 2nd DOF'
+
+    def test_split_inline_math_ordinal(self):
+        assert rule13_ordinal_suffixes(r'the 3$^{\mathrm{rd}}$ DOF') == 'the 3rd DOF'
+
+    def test_bare_math_ordinal(self):
+        assert rule13_ordinal_suffixes(r'the $4^{th}$ DOF') == 'the 4th DOF'
+
+    def test_skip_comment(self):
+        src = r'% the 1\textsuperscript{st} DOF'
+        assert rule13_ordinal_suffixes(src) == src
 
 
 # ── Warnings (individual functions) ─────────────────────────────────
@@ -360,7 +464,7 @@ class TestWarnings:
 
 class TestRegistry:
     def test_all_rules_registered(self):
-        assert len(RULES) == 16
+        assert len(RULES) == 17
 
     def test_rule_ids_unique(self):
         ids = [r.id for r in RULES]
@@ -376,7 +480,7 @@ class TestRegistry:
 
     def test_fixable_count(self):
         fixable = [r for r in RULES if r.fixable]
-        assert len(fixable) == 12
+        assert len(fixable) == 13
 
     def test_unfixable_count(self):
         unfixable = [r for r in RULES if not r.fixable]
@@ -394,7 +498,7 @@ class TestThreshold:
         src = '\\section{Foo}\n\\label{sec:foo}'
         config = {'threshold': 5, 'weights': {'labels_inline': 8}}
         result = texfmt(src, 'test.tex', config=config)
-        clang_ids = [r.id for r in result.clangs]
+        clang_ids = [r.id for r, _ in result.clangs]
         assert 'labels_inline' in clang_ids
 
     def test_low_weight_fixable_is_splat(self):

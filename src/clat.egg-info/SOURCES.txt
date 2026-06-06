@@ -1,3 +1,4 @@
+README.md
 pyproject.toml
 src/clat/__init__.py
 src/clat/cli.py

@@ -64,6 +64,53 @@ _FONT_MAP = {
     'tt': 'texttt', 'sc': 'textsc', 'em': 'emph', 'sl': 'textsl',
 }
 
+# Display-math environments that should be separated from surrounding prose
+# by a literal '%' line.  Keep this as a list of environment names rather than
+# baking the policy into increasingly broad regular expressions: wrappers such
+# as subequations need separators around the wrapper, not around the nested
+# align/equation environment inside it.
+_MATH_SEPARATOR_ENVS = {
+    'equation', 'equation*',
+    'align', 'align*',
+    'alignat', 'alignat*',
+    'gather', 'gather*',
+    'multline', 'multline*',
+    'flalign', 'flalign*',
+    'displaymath',
+    'eqnarray', 'eqnarray*',
+    'subequations',
+}
+
+_FLOAT_SEPARATOR_ENVS = {'figure', 'table'}
+_BEGIN_ENV_RE = re.compile(r'^\s*\\begin\{([^}]+)\}')
+_END_ENV_RE = re.compile(r'^\s*\\end\{([^}]+)\}')
+
+
+def _begin_env(line):
+    match = _BEGIN_ENV_RE.match(line)
+    return match.group(1) if match else None
+
+
+def _end_env(line):
+    match = _END_ENV_RE.match(line)
+    return match.group(1) if match else None
+
+
+def _contains_math_env(env_stack):
+    return any(env in _MATH_SEPARATOR_ENVS for env in env_stack)
+
+
+def _starts_separator_env(line):
+    env = _begin_env(line)
+    return env in _MATH_SEPARATOR_ENVS or env in _FLOAT_SEPARATOR_ENVS
+
+
+def _pop_env(env_stack, env):
+    for i in range(len(env_stack) - 1, -1, -1):
+        if env_stack[i] == env:
+            del env_stack[i:]
+            return
+
 
 # ── Rule registry ───────────────────────────────────────────────────
 
@@ -109,33 +156,50 @@ def rule1_labels_inline(text):
 
 
 def rule2_equation_separators(text):
-    """% lines around equations; blank lines around floats."""
+    """% lines around display-math environments; blank lines around floats."""
     lines = text.split('\n')
-    eq_start = re.compile(r'^\s*\\begin\{(equation|align)\}')
-    eq_end = re.compile(r'^\s*\\end\{(equation|align)\}')
-    float_start = re.compile(r'^\s*\\begin\{(figure|table)\}')
-    float_end = re.compile(r'^\s*\\end\{(figure|table)\}')
-    env_start = re.compile(r'^\s*\\begin\{(equation|align|figure|table)\}')
     result = []
+    env_stack = []
     n = len(lines)
+
     for i, line in enumerate(lines):
-        is_eq_start = eq_start.match(line)
-        is_float_start = float_start.match(line)
-        if (is_eq_start or is_float_start) and result:
+        # Clean up separator lines that earlier formatter versions inserted
+        # around nested align/equation environments inside wrappers such as
+        # subequations.  The wrapper receives the surrounding separators.
+        if line.strip() == '%' and _contains_math_env(env_stack):
+            continue
+
+        begin_env = _begin_env(line)
+        end_env = _end_env(line)
+        is_math_start = begin_env in _MATH_SEPARATOR_ENVS
+        is_float_start = begin_env in _FLOAT_SEPARATOR_ENVS
+        inside_math = _contains_math_env(env_stack)
+
+        if (is_math_start or is_float_start) and result:
             prev = result[-1].strip()
-            if is_eq_start and prev and prev != '%':
+            if is_math_start and not inside_math and prev and prev != '%':
                 result.append('%')
             elif is_float_start and prev and prev != '':
                 result.append('')
+
         result.append(line)
-        is_eq_end = eq_end.match(line)
-        is_float_end = float_end.match(line)
-        if (is_eq_end or is_float_end) and i + 1 < n:
+
+        if begin_env:
+            env_stack.append(begin_env)
+
+        is_math_end = end_env in _MATH_SEPARATOR_ENVS
+        is_float_end = end_env in _FLOAT_SEPARATOR_ENVS
+        if end_env:
+            _pop_env(env_stack, end_env)
+
+        if (is_math_end or is_float_end) and i + 1 < n:
             nxt = lines[i + 1].strip()
-            if is_eq_end and nxt and nxt != '%' and not env_start.match(lines[i + 1]):
+            if (is_math_end and not _contains_math_env(env_stack)
+                    and nxt and nxt != '%' and not _starts_separator_env(lines[i + 1])):
                 result.append('%')
             elif is_float_end and nxt and nxt != '':
                 result.append('')
+
     return '\n'.join(result)
 
 
@@ -252,8 +316,10 @@ def rule5_heading_spacing(text):
             while result and result[-1].strip() == '':
                 result.pop()
             if result:
-                result.append('')
-                result.append('')
+                # No blank lines between consecutive headings
+                if not heading_re.match(result[-1]):
+                    result.append('')
+                    result.append('')
             result.append(line)
             continue
         if i > 0 and line.strip() == '':
@@ -309,8 +375,17 @@ def rule7_strip_decorative_comments(text):
 
 
 def rule8_math_delimiters(text):
-    """$...$ -> \\(...\\), $$...$$ -> \\[...\\]."""
-    text = re.sub(r'\$\$(.*?)\$\$', r'\\[\1\\]', text, flags=re.DOTALL)
+    """\\(...\\) -> $...$, \\[...\\] -> $$...$$.
+
+    Converts the verbose LaTeX2e math delimiters to the short dollar form,
+    which is the convention preferred in most structural-engineering
+    manuscripts. Display-math \\[...\\] may span lines and is handled with
+    DOTALL; inline \\(...\\) is matched within a single line so that an
+    unbalanced ``\\(`` does not greedily consume across paragraphs.
+    """
+    # Display math first; it can span newlines.
+    text = re.sub(r'\\\[(.*?)\\\]', r'$$\1$$', text, flags=re.DOTALL)
+    # Inline math: skip comment lines and verbatim blocks.
     lines = text.split('\n')
     result = []
     for line in lines:
@@ -318,9 +393,7 @@ def rule8_math_delimiters(text):
         if stripped.startswith('%') or stripped.startswith('\\begin{verbatim'):
             result.append(line)
             continue
-        protected = line.replace('\\$', '\x01')
-        converted = re.sub(r'\$([^$]+?)\$', r'\\(\1\\)', protected)
-        result.append(converted.replace('\x01', '\\$'))
+        result.append(re.sub(r'\\\((.*?)\\\)', r'$\1$', line))
     return '\n'.join(result)
 
 
@@ -332,11 +405,63 @@ def rule9_tilde_before_refs(text):
 
 
 def rule10_number_unit_spacing(text):
-    """number~unit or number<space>unit -> number\\,unit."""
+    """Normalise number-unit spacing to a non-expanding thin space.
+
+    Handles ordinary spaces, non-breaking spaces, LaTeX spacing commands, and
+    missing spaces:
+      * ``100 kN``, ``100~kN`` or ``100kN``       -> ``100\\,kN``
+      * ``100\\;kN`` or ``100\\quad kN``          -> ``100\\,kN``
+      * ``$78$ kN``, ``$78$~kN`` or ``$78$kN``    -> ``$78$\\,kN``
+      * ``$EI = 200$ MN`` or ``$EI = 200$MN``     -> ``$EI = 200$\\,MN``
+
+    Already-correct ``\\,`` spacing is left unchanged.  No-space fixes exclude
+    bare ``s`` to avoid turning decades such as ``1990s`` into units.
+    """
     units = sorted(_UNITS, key=len, reverse=True)
+    no_sep_units = sorted((u for u in _UNITS if u != r's'), key=len, reverse=True)
     unit_pat = '|'.join(re.escape(u) for u in units)
-    pattern = re.compile(r'(?<=\d)[~\s](?=(?:' + unit_pat + r')(?![A-Za-z]))')
-    return pattern.sub(r'\\,', text)
+    no_sep_unit_pat = '|'.join(re.escape(u) for u in no_sep_units)
+    unit_boundary = r'(?![A-Za-z_])'
+    spacing = (
+        r'(?:[~ \t]+|'
+        r'\\[,;:!][ \t]*|'
+        r'\\(?:thinspace|medspace|thickspace|enspace|quad|qquad)[ \t]*|'
+        r'\\hspace\*?\{[^}]+\}[ \t]*|'
+        r'\\[ \t]+)'
+    )
+
+    # 1. Digit-ended numbers with an explicit, wrong-sized separator.
+    explicit_digit_re = re.compile(
+        r'(?P<num>(?<![A-Za-z\\])\d+(?:\.\d+)?)'
+        r'(?P<sep>' + spacing + r')'
+        r'(?P<unit>(?:' + unit_pat + r'))' + unit_boundary
+    )
+    text = explicit_digit_re.sub(r'\g<num>\\,\g<unit>', text)
+
+    # 2. Digit-ended numbers with no separator, e.g. "100kN".
+    no_sep_digit_re = re.compile(
+        r'(?P<num>(?<![A-Za-z\\])\d+(?:\.\d+)?)'
+        r'(?P<unit>(?:' + no_sep_unit_pat + r'))' + unit_boundary
+    )
+    text = no_sep_digit_re.sub(r'\g<num>\\,\g<unit>', text)
+
+    # 3. Closing-dollar ended inline math, e.g. "$78$ kN" or "$EI = 78$~kN".
+    # Require the content to end in a digit or closing brace/bracket so that
+    # we don't touch e.g. "$x$ kN".
+    dollar_expr = r'\$[^$\n]*[\d}\])]\$'
+    explicit_dollar_re = re.compile(
+        r'(?P<expr>' + dollar_expr + r')'
+        r'(?P<sep>' + spacing + r')'
+        r'(?P<unit>(?:' + unit_pat + r'))' + unit_boundary
+    )
+    text = explicit_dollar_re.sub(r'\g<expr>\\,\g<unit>', text)
+
+    no_sep_dollar_re = re.compile(
+        r'(?P<expr>' + dollar_expr + r')'
+        r'(?P<unit>(?:' + no_sep_unit_pat + r'))' + unit_boundary
+    )
+    text = no_sep_dollar_re.sub(r'\g<expr>\\,\g<unit>', text)
+    return text
 
 
 def rule11_old_font_commands(text):
@@ -361,6 +486,59 @@ def rule12_ellipsis(text):
             result.append(line)
             continue
         result.append(re.sub(r'(?<!\\)\.\.\.', r'\\dots', line))
+    return '\n'.join(result)
+
+
+def rule13_ordinal_suffixes(text):
+    """Convert superscript ordinal suffixes to plain text (1st, 2nd, ...)."""
+    suffix = r'(st|nd|rd|th)'
+    wrapped_suffix = (
+        r'(?:\\(?:text|textrm|mathrm)\{\s*' + suffix + r'\s*\}|'
+        + suffix + r')'
+    )
+
+    def suffix_text(match):
+        # Each pattern has two possible suffix capture groups: one for wrapped
+        # suffixes such as \text{st}, and one for bare suffixes such as {st}.
+        return match.group(1) + (match.group(2) or match.group(3)).lower()
+
+    whole_math_re = re.compile(
+        r'\$\s*(\d+)\s*\^\s*(?:\{\s*)?' + wrapped_suffix +
+        r'(?:\s*\})?\s*\$',
+        re.IGNORECASE,
+    )
+    split_math_re = re.compile(
+        r'(\d+)\s*\$\s*\^\s*(?:\{\s*)?' + wrapped_suffix +
+        r'(?:\s*\})?\s*\$',
+        re.IGNORECASE,
+    )
+    paren_math_re = re.compile(
+        r'\\\(\s*(\d+)\s*\^\s*(?:\{\s*)?' + wrapped_suffix +
+        r'(?:\s*\})?\s*\\\)',
+        re.IGNORECASE,
+    )
+    textsup_re = re.compile(
+        r'(\d+)\\textsuperscript\{\s*' + suffix + r'\s*\}',
+        re.IGNORECASE,
+    )
+
+    lines = text.split('\n')
+    result = []
+    in_verbatim = False
+    for line in lines:
+        if re.match(r'^\s*\\begin\{(verbatim|lstlisting)\}', line):
+            in_verbatim = True
+        if re.match(r'^\s*\\end\{(verbatim|lstlisting)\}', line):
+            in_verbatim = False
+        if in_verbatim or line.strip().startswith('%'):
+            result.append(line)
+            continue
+
+        line = whole_math_re.sub(suffix_text, line)
+        line = split_math_re.sub(suffix_text, line)
+        line = paren_math_re.sub(suffix_text, line)
+        line = textsup_re.sub(lambda m: m.group(1) + m.group(2).lower(), line)
+        result.append(line)
     return '\n'.join(result)
 
 
@@ -446,20 +624,21 @@ RULES = [
     Rule( 1, 'labels_inline',        'Merge \\label onto the same line as \\section',              rule1_labels_inline,            weight=8, fixable=True,  order=10),
     Rule( 2, 'decorative_comments',  'Strip decorative comment separators (%%===, %%--- etc.)',    rule7_strip_decorative_comments, weight=6, fixable=True,  order=20),
     Rule( 3, 'heading_spacing',      'Two blank lines before headings, none after',                rule5_heading_spacing,           weight=7, fixable=True,  order=30),
-    Rule( 4, 'equation_separators',  'Insert % lines around equation/align environments',         rule2_equation_separators,       weight=7, fixable=True,  order=40),
+    Rule( 4, 'equation_separators',  'Insert % lines around display-math environments',          rule2_equation_separators,       weight=7, fixable=True,  order=40),
     Rule( 5, 'equation_punctuation', 'Add trailing comma or period to display equations',         rule4_equation_punctuation,      weight=6, fixable=True,  order=50),
     Rule( 6, 'float_indentation',    'Tab-indent content inside figure/table/list environments',  rule6_figure_indentation,        weight=5, fixable=True,  order=60),
     Rule( 7, 'one_sentence_per_line','Split sentences onto individual lines',                     rule3_one_sentence_per_line,     weight=8, fixable=True,  order=70),
-    Rule( 8, 'math_delimiters',      'Replace $...$ with \\(...\\) and $$...$$ with \\[...\\]',   rule8_math_delimiters,           weight=5, fixable=True,  order=80),
+    Rule( 8, 'math_delimiters',      'Replace \\(...\\) with $...$ and \\[...\\] with $$...$$',   rule8_math_delimiters,           weight=5, fixable=True,  order=80),
     Rule( 9, 'tilde_before_refs',    'Ensure non-breaking space before \\ref, \\cite etc.',       rule9_tilde_before_refs,         weight=7, fixable=True,  order=90),
-    Rule(10, 'number_unit_spacing',  'Thin space between numbers and units (100\\,kN)',           rule10_number_unit_spacing,      weight=6, fixable=True,  order=100),
+    Rule(10, 'number_unit_spacing',  'Normalise number-unit spacing (100\\,kN)',                 rule10_number_unit_spacing,      weight=6, fixable=True,  order=100),
     Rule(11, 'old_font_commands',    'Replace {\\bf text} with \\textbf{text} etc.',              rule11_old_font_commands,        weight=5, fixable=True,  order=110),
     Rule(12, 'ellipsis',             'Replace ... with \\dots',                                   rule12_ellipsis,                 weight=4, fixable=True,  order=120),
+    Rule(13, 'ordinal_suffixes',     'Convert superscript ordinals to plain text (1st, 2nd)',     rule13_ordinal_suffixes,         weight=8, fixable=True,  order=130),
     # Unfixable rules (warnings / clunks)
-    Rule(13, 'long_file',            'Warn if file exceeds 2000 lines',                           warn_long_file,                  weight=3, fixable=False, order=200),
-    Rule(14, 'hardcoded_refs',       'Detect "Figure 3" instead of \\cref{...}',                  warn_hardcoded_refs,             weight=6, fixable=False, order=210),
-    Rule(15, 'manual_sizing',        'Detect \\big, \\Big etc. (prefer \\left/\\right)',          warn_manual_sizing,              weight=3, fixable=False, order=220),
-    Rule(16, 'float_after_heading',  'Detect float placed directly after a heading',              warn_float_after_heading,        weight=4, fixable=False, order=230),
+    Rule(14, 'long_file',            'Warn if file exceeds 2000 lines',                           warn_long_file,                  weight=3, fixable=False, order=200),
+    Rule(15, 'hardcoded_refs',       'Detect "Figure 3" instead of \\cref{...}',                  warn_hardcoded_refs,             weight=6, fixable=False, order=210),
+    Rule(16, 'manual_sizing',        'Detect \\big, \\Big etc. (prefer \\left/\\right)',          warn_manual_sizing,              weight=3, fixable=False, order=220),
+    Rule(17, 'float_after_heading',  'Detect float placed directly after a heading',              warn_float_after_heading,        weight=4, fixable=False, order=230),
 ]
 
 
@@ -574,7 +753,7 @@ class ClatResult:
     Attributes
     ----------
     text : str          — the (possibly modified) source text
-    clangs : list[Rule] — rules that were auto-fixed
+    clangs : list[tuple] — (rule, count) for auto-fixed rules above threshold
     clunks : list[tuple] — (rule, filename, line, msg) for unfixable issues above threshold
     splats : list[tuple] — (rule, filename, line, msg) for issues below threshold
     """
@@ -608,8 +787,13 @@ def texfmt(text, filename='<input>', config=None):
             original = result.text
             result.text = rule.fn(result.text)
             if result.text != original:
+                orig_lines = original.split('\n')
+                new_lines = result.text.split('\n')
+                n_hits = (sum(1 for a, b in zip(orig_lines, new_lines)
+                              if a != b)
+                          + abs(len(orig_lines) - len(new_lines)))
                 if w >= threshold:
-                    result.clangs.append(rule)
+                    result.clangs.append((rule, n_hits))
                 else:
                     # Below threshold: still fix, but report as splat
                     result.splats.append((rule, filename, 0,

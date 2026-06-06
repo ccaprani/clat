@@ -82,25 +82,38 @@ def _print_issues(issues, intros, style):
         )
 
 
+def _tally_issues(issues):
+    """Return (n_rules, n_occurrences) for a list of issue tuples."""
+    rules = {item[0].id for item in issues}
+    return len(rules), len(issues)
+
+
+def _times(n):
+    return "time" if n == 1 else "times"
+
+
 def _report(filename, result):
     n_clangs = len(result.clangs)
-    n_clunks = len(result.clunks)
-    n_splats = len(result.splats)
+    n_clunks_rules, n_clunks_hits = _tally_issues(result.clunks)
+    n_splats_rules, n_splats_hits = _tally_issues(result.splats)
 
-    if n_clangs == 0 and n_clunks == 0 and n_splats == 0:
+    if n_clangs == 0 and n_clunks_rules == 0 and n_splats_rules == 0:
         console.print(f'  [green]{filename}[/]: {pick(CLEAN)}')
         return
 
     parts = []
     if n_clangs > 0:
+        clang_hits = sum(count for _, count in result.clangs)
         msg = pick(FIXED, n=n_clangs, noun=fix_or_fixes(n_clangs))
-        parts.append(f'[bold cyan]{msg}[/]')
-    if n_clunks > 0:
+        parts.append(f'[bold cyan]{msg} ({clang_hits} {_times(clang_hits)})[/]')
+    if n_clunks_rules > 0:
         parts.append(
-            f'[bold red]{n_clunks} {clunk_or_clunks(n_clunks)}[/]')
-    if n_splats > 0:
+            f'[bold red]{n_clunks_rules} {clunk_or_clunks(n_clunks_rules)}'
+            f' ({n_clunks_hits} {_times(n_clunks_hits)})[/]')
+    if n_splats_rules > 0:
         parts.append(
-            f'[bold yellow]{n_splats} {splat_or_splats(n_splats)}[/]')
+            f'[bold yellow]{n_splats_rules} {splat_or_splats(n_splats_rules)}'
+            f' ({n_splats_hits} {_times(n_splats_hits)})[/]')
 
     console.print(f'  {filename}: {", ".join(parts)}')
     _print_issues(result.clunks, CLUNK_INTROS, 'red')
@@ -108,24 +121,27 @@ def _report(filename, result):
 
 
 def _report_check(filename, result, n_fixable):
-    n_clunks = len(result.clunks)
-    n_splats = len(result.splats)
+    n_clunks_rules, n_clunks_hits = _tally_issues(result.clunks)
+    n_splats_rules, n_splats_hits = _tally_issues(result.splats)
 
-    if n_fixable == 0 and n_clunks == 0 and n_splats == 0:
+    if n_fixable == 0 and n_clunks_rules == 0 and n_splats_rules == 0:
         console.print(f'  [green]{filename}[/]: {pick(CLEAN)}')
         return
 
     parts = []
     if n_fixable > 0:
+        clang_hits = sum(count for _, count in result.clangs)
         msg = pick(CHECK_DIRTY, n=n_fixable,
                    noun=clang_or_clangs(n_fixable))
-        parts.append(f'[bold red]{msg}[/]')
-    if n_clunks > 0:
+        parts.append(f'[bold red]{msg} ({clang_hits} {_times(clang_hits)})[/]')
+    if n_clunks_rules > 0:
         parts.append(
-            f'[bold red]{n_clunks} {clunk_or_clunks(n_clunks)}[/]')
-    if n_splats > 0:
+            f'[bold red]{n_clunks_rules} {clunk_or_clunks(n_clunks_rules)}'
+            f' ({n_clunks_hits} {_times(n_clunks_hits)})[/]')
+    if n_splats_rules > 0:
         parts.append(
-            f'[bold yellow]{n_splats} {splat_or_splats(n_splats)}[/]')
+            f'[bold yellow]{n_splats_rules} {splat_or_splats(n_splats_rules)}'
+            f' ({n_splats_hits} {_times(n_splats_hits)})[/]')
 
     console.print(f'  {filename}: {", ".join(parts)}')
     _print_issues(result.clunks, CLUNK_INTROS, 'red')

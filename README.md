@@ -10,6 +10,14 @@ What happens depends on the combination:
 - **clunk** -- weight >= threshold *and* not fixable: needs your attention
 - **splat** -- weight < threshold: advisory, take it or leave it
 
+## Why "clat"?
+
+Prosaically, `clat` is Colin's LaTeX Tool. But the name also has a bit of printer's noise in it.
+
+In the "Aeolus" episode of *Ulysses* -- "How a great daily organ is turned out" -- Bloom moves through the newspaper office amid the machinery of print: clanking, rhythmic, three-four time; thump, thump, thump. My great-great-grandfather, a Dublin printer, is mentioned there too, though some editions mangle Caprani as Cuprani.
+
+So `clat` is meant to sound a little like that composing-room racket: a small, opinionated machine for turning untidy copy into clean type.
+
 ## Install
 
 ```
@@ -43,19 +51,20 @@ Run `clat list` to see all rules with their numbers, weights, and current catego
 |  1 | labels_inline         |    8    |   yes   | Merge `\label` onto the same line as `\section`            |
 |  2 | decorative_comments   |    6    |   yes   | Strip decorative comment separators (`%%===` etc.)         |
 |  3 | heading_spacing       |    7    |   yes   | Two blank lines before headings, none after                |
-|  4 | equation_separators   |    7    |   yes   | Insert `%` lines around equation/align environments        |
+|  4 | equation_separators   |    7    |   yes   | Insert `%` lines around display-math environments          |
 |  5 | equation_punctuation  |    6    |   yes   | Add trailing comma or period to display equations          |
 |  6 | float_indentation     |    5    |   yes   | Tab-indent content inside figure/table/list environments   |
 |  7 | one_sentence_per_line |    8    |   yes   | Split sentences onto individual lines                      |
-|  8 | math_delimiters       |    5    |   yes   | Replace `$...$` with `\(...\)` and `$$...$$` with `\[..\]`|
+|  8 | math_delimiters       |    5    |   yes   | Replace `\(...\)` with `$...$` and `\[...\]` with `$$...$$`|
 |  9 | tilde_before_refs     |    7    |   yes   | Ensure `~` before `\ref`, `\cite` etc.                     |
-| 10 | number_unit_spacing   |    6    |   yes   | Thin space between numbers and units (`100\,kN`)           |
+| 10 | number_unit_spacing   |    6    |   yes   | Normalise number-unit spacing (`100\,kN`)                  |
 | 11 | old_font_commands     |    5    |   yes   | Replace `{\bf text}` with `\textbf{text}` etc.             |
 | 12 | ellipsis              |    4    |   yes   | Replace `...` with `\dots`                                 |
-| 13 | long_file             |    3    |   no    | Warn if file exceeds 2000 lines                            |
-| 14 | hardcoded_refs        |    6    |   no    | Detect `Figure 3` instead of `\cref{...}`                  |
-| 15 | manual_sizing         |    3    |   no    | Detect `\big`, `\Big` etc.                                 |
-| 16 | float_after_heading   |    4    |   no    | Detect float placed directly after a heading               |
+| 13 | ordinal_suffixes      |    8    |   yes   | Convert superscript ordinals to plain text (`1st`, `2nd`)  |
+| 14 | long_file             |    3    |   no    | Warn if file exceeds 2000 lines                            |
+| 15 | hardcoded_refs        |    6    |   no    | Detect `Figure 3` instead of `\cref{...}`                  |
+| 16 | manual_sizing         |    3    |   no    | Detect `\big`, `\Big` etc.                                 |
+| 17 | float_after_heading   |    4    |   no    | Detect float placed directly after a heading               |
 
 ## Configuration
 
@@ -77,7 +86,7 @@ threshold = 5
 labels_inline         =  8  # Merge \label onto the same line as \section (fixable)
 decorative_comments   =  6  # Strip decorative comment separators (fixable)
 heading_spacing       =  7  # Two blank lines before headings, none after (fixable)
-# ... all 16 rules listed
+# ... all 17 rules listed
 ```
 
 Edit the file directly, or use the CLI:
