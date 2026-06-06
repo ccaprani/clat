@@ -1,4 +1,13 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ccaprani/clat/main/docs/assets/clat-logo.png" width="120" alt="clat logo">
+</p>
+
 # clat
+
+[![PyPI](https://img.shields.io/pypi/v/clat-tidy?color=3949ab)](https://pypi.org/project/clat-tidy/)
+[![Python versions](https://img.shields.io/pypi/pyversions/clat-tidy)](https://pypi.org/project/clat-tidy/)
+[![Docs](https://github.com/ccaprani/clat/actions/workflows/docs.yml/badge.svg)](https://ccaprani.github.io/clat/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/ccaprani/clat/blob/main/LICENSE)
 
 Colin's LaTeX Tidy -- somewhere between a clang and a splat.
 

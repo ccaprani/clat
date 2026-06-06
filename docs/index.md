@@ -1,5 +1,9 @@
 # clat
 
+[![PyPI](https://img.shields.io/pypi/v/clat-tidy?color=3949ab)](https://pypi.org/project/clat-tidy/)
+[![Python versions](https://img.shields.io/pypi/pyversions/clat-tidy)](https://pypi.org/project/clat-tidy/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/ccaprani/clat/blob/main/LICENSE)
+
 **Colin's LaTeX Tidy** — somewhere between a clang and a splat.
 
 `clat` is a configurable LaTeX source formatter with opinions. It cleans up

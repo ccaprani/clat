@@ -11,9 +11,10 @@ copyright: Copyright &copy; Colin Caprani
 
 theme:
   name: material
+  logo: assets/logo.svg
+  favicon: assets/favicon.svg
   icon:
     repo: fontawesome/brands/github
-    logo: material/printer
   palette:
     - media: "(prefers-color-scheme)"
       toggle:
@@ -50,6 +51,7 @@ nav:
   - Installation: installation.md
   - Quick start: quickstart.md
   - Rules: rules.md
+  - Multi-file documents: multi-file.md
   - Configuration: configuration.md
   - CLI reference: cli.md
   - Python API: api.md

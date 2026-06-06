@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="clat">
+  <title>clat</title>
+  <!-- type sort: a tidied block of three lines, coloured clang / clunk / splat -->
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="#3949ab"/>
+  <rect x="15" y="20" width="34" height="6" rx="3" fill="#26c6da"/>
+  <rect x="15" y="29" width="22" height="6" rx="3" fill="#ef5350"/>
+  <rect x="15" y="38" width="29" height="6" rx="3" fill="#ffca28"/>
+</svg>
