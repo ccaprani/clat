@@ -78,16 +78,23 @@ clat set --threshold 8
 
 ## Set a rule weight
 
-By rule number (see `clat list` for the numbers):
+Prefer rule ids for scripts and repeatable configuration:
 
 ```bash
-clat set 12 9     # set rule 12 (ellipsis) to weight 9
-clat set 14 2     # demote rule 14 (long_file) to a splat
-clat set 18 5     # enable display math delimiter conversion
-clat set 19 5     # convert display math delimiters to equation environments
+clat set ellipsis 9                  # set ellipsis to weight 9
+clat set long_file 2                 # demote long_file to a splat
+clat set math_delimiters_display 5   # enable display math delimiter conversion
+clat set math_delimiters_equation 5  # convert display delimiters to equation
 ```
 
-Or edit `.clat.toml` directly under `[weights]`, keyed by the rule's **id**:
+List numbers from `clat list` are also accepted for interactive use, but the
+`.clat.toml` file is always keyed by rule **id**:
+
+```bash
+clat set 14 9     # also accepted: current list number for ellipsis
+```
+
+You can also edit `.clat.toml` directly under `[weights]`:
 
 ```toml
 [weights]

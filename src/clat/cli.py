@@ -15,7 +15,8 @@ Usage:
   clat --check file.tex            Dry run
   clat --max-iter N                Maximum fixable-rule sweeps (default 5)
   clat list                        List rules, weights, and categories
-  clat set <rule#> <weight>        Set a rule weight in .clat.toml (0 disables)
+  clat set <rule-id|rule#> <weight>
+                                      Set a rule weight in .clat.toml (0 disables)
   clat set --threshold N           Set the threshold
   clat set --init                  Create .clat.toml with defaults
   clat set --reset                 Restore .clat.toml to defaults
@@ -31,7 +32,8 @@ from rich.text import Text
 from . import __version__
 from .rules import (
     texfmt, load_config, save_config, generate_default_config,
-    RULES, DEFAULT_THRESHOLD, DEFAULT_MAX_ITER, _effective_weight, _get_rule_by_num,
+    RULES, DEFAULT_THRESHOLD, DEFAULT_MAX_ITER, _effective_weight, _get_rule,
+    _get_rule_by_num,
 )
 from .personality import (
     GREETINGS, CLEAN, FIXED, CLUNK_INTROS, SPLAT_INTROS,
@@ -322,8 +324,8 @@ def _cmd_set(argv):
         prog='clat set',
         description='Configure rules and threshold in .clat.toml',
     )
-    parser.add_argument('rule_num', nargs='?', type=int,
-                        help='Rule number (see clat list)')
+    parser.add_argument('rule_ref', nargs='?',
+                        help='Rule id or current list number (see clat list)')
     parser.add_argument('weight', nargs='?', type=int,
                         help='Weight to assign (0–10; 0 disables)')
     parser.add_argument('--threshold', type=int, default=None,
@@ -360,11 +362,14 @@ def _cmd_set(argv):
         console.print(f'[green]Set[/] threshold = {args.threshold} in {dest}')
         return
 
-    if args.rule_num is not None and args.weight is not None:
-        rule = _get_rule_by_num(args.rule_num)
+    if args.rule_ref is not None and args.weight is not None:
+        if args.rule_ref.isdigit():
+            rule = _get_rule_by_num(int(args.rule_ref))
+        else:
+            rule = _get_rule(args.rule_ref)
         if rule is None:
             console.print(
-                f'[bold red]Unknown rule:[/] {args.rule_num}\n'
+                f'[bold red]Unknown rule:[/] {args.rule_ref}\n'
                 f'  Run [bold]clat list[/] to see available rules.')
             sys.exit(1)
         config['weights'][rule.id] = args.weight

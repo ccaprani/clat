@@ -68,7 +68,7 @@ clat v0.4.0  …
   ✓  1: clang  w=8   labels_inline
   ✓  2: splat  w=6   decorative_comments
   …
-  ✗ 15: clunk  w=6   hardcoded_refs
+  ✗ 17: clunk  w=6   hardcoded_refs
   …
 ```
 
@@ -109,7 +109,7 @@ To make a change stick, see [Configuration](configuration.md).
 
 By default clat sweeps enabled fixable rules until a full pass makes no text
 changes, up to 5 iterations. This helps interacting rules compose cleanly. To
-restore legacy single-pass behaviour:
+use a single-pass run:
 
 ```bash
 clat --max-iter 1 main.tex

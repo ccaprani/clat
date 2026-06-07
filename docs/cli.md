@@ -16,7 +16,8 @@ clat --max-iter N <files>    Maximum fixable-rule sweeps (default 5)
 clat list                    List all rules with weights and categories
 clat list --config path      Use a specific config file
 
-clat set <rule#> <weight>    Set a rule weight in .clat.toml
+clat set <rule-id|rule#> <weight>
+                                Set a rule weight in .clat.toml
 clat set --threshold N       Set the threshold in .clat.toml
 clat set --init              Create .clat.toml with defaults
 clat set --reset             Restore .clat.toml to defaults
@@ -59,7 +60,7 @@ clat --check -r main.tex           # dry run the whole multi-file document
 clat --check main.tex              # dry run
 clat -o clean.tex main.tex         # write elsewhere, leave the input alone
 clat --threshold 3 main.tex        # one-off stricter run
-clat --max-iter 1 main.tex         # legacy single-pass run
+clat --max-iter 1 main.tex         # single-pass run
 ```
 
 **Exit status**
@@ -93,14 +94,14 @@ one.
 ## `clat set`
 
 ```text
-clat set [<rule#> <weight>] [--threshold N] [--init] [--reset] [--config PATH]
+clat set [<rule-id|rule#> <weight>] [--threshold N] [--init] [--reset] [--config PATH]
 ```
 
 Edit the configuration file (default `./.clat.toml`).
 
 | Option | Description |
 |--------|-------------|
-| `<rule#> <weight>` | Set the weight (0–10) of the rule with the given number; 0 disables it. |
+| `<rule-id|rule#> <weight>` | Set the weight (0–10) of a rule; 0 disables it. Prefer ids for scripts. |
 | `--threshold N`    | Set the threshold (1–10). |
 | `--init`           | Create `.clat.toml` with defaults. Refuses to overwrite an existing file. |
 | `--reset`          | Overwrite `.clat.toml` with defaults. |
@@ -111,7 +112,8 @@ Edit the configuration file (default `./.clat.toml`).
 ```bash
 clat set --init              # create .clat.toml
 clat set --threshold 7       # raise the threshold
-clat set 12 9                # set rule 12 (ellipsis) to weight 9
+clat set ellipsis 9          # set ellipsis to weight 9
+clat set 14 9                # also accepted: current list number for ellipsis
 clat set --reset             # restore defaults
 ```
 

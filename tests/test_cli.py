@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from clat.cli import discover_tex_files
+from clat.cli import discover_tex_files, _cmd_set
 
 
 def test_discover_tex_files_recurses_inputs(tmp_path, monkeypatch):
@@ -36,6 +36,15 @@ def test_discover_tex_files_recurses_inputs(tmp_path, monkeypatch):
         Path('appendix/app.tex'),
         Path('missing.tex'),
     ]
+
+
+def test_cmd_set_accepts_rule_id(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    _cmd_set(['math_delimiters_equation', '5'])
+
+    config_text = (tmp_path / '.clat.toml').read_text()
+    assert 'math_delimiters_equation =  5' in config_text
 
 
 def test_discover_tex_files_handles_bare_input_and_import(tmp_path, monkeypatch):

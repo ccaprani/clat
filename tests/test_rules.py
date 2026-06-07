@@ -12,13 +12,13 @@ from clat.rules import (
     rule6_figure_indentation,
     rule7_strip_decorative_comments,
     rule8_math_delimiters_inline,
-    rule18_math_delimiters_display,
-    rule19_math_delimiters_equation,
-    rule9_tilde_before_refs,
-    rule10_number_unit_spacing,
-    rule11_old_font_commands,
-    rule12_ellipsis,
-    rule13_ordinal_suffixes,
+    rule9_math_delimiters_display,
+    rule10_math_delimiters_equation,
+    rule11_tilde_before_refs,
+    rule12_number_unit_spacing,
+    rule13_old_font_commands,
+    rule14_ellipsis,
+    rule15_ordinal_suffixes,
     warn_hardcoded_refs,
     warn_manual_sizing,
     warn_long_file,
@@ -31,7 +31,6 @@ from clat.rules import (
     DEFAULT_MAX_ITER,
     _effective_weight,
     _get_rule,
-    save_config,
 )
 
 TESTS_DIR = os.path.dirname(__file__)
@@ -261,201 +260,201 @@ class TestRule8:
         assert rule8_math_delimiters_inline(src) == src
 
 
-# ── Rule 18: display math delimiters ────────────────────────────────
+# ── Rule 9: display math delimiters ─────────────────────────────────
 
-class TestRule18:
+class TestRule9:
     def test_display_bracket(self):
         src = '\\[E = mc^2\\]'
-        assert rule18_math_delimiters_display(src) == '$$E = mc^2$$'
+        assert rule9_math_delimiters_display(src) == '$$E = mc^2$$'
 
     def test_multiline_display(self):
         src = '\\[\n  a = b\n\\]'
-        assert rule18_math_delimiters_display(src) == '$$\n  a = b\n$$'
+        assert rule9_math_delimiters_display(src) == '$$\n  a = b\n$$'
 
     def test_inline_paren_left_alone(self):
         src = 'The value \\(x\\) is positive.'
-        assert rule18_math_delimiters_display(src) == src
+        assert rule9_math_delimiters_display(src) == src
 
     def test_idempotent(self):
         src = 'Already $x$ and $$y$$.'
-        assert rule18_math_delimiters_display(src) == src
+        assert rule9_math_delimiters_display(src) == src
 
 
-# ── Rule 19: display math delimiters to equation ────────────────────
+# ── Rule 10: display math delimiters to equation ────────────────────
 
-class TestRule19:
+class TestRule10:
     def test_display_bracket_single_line(self):
         src = '\\[E = mc^2\\]'
-        assert rule19_math_delimiters_equation(src) == (
+        assert rule10_math_delimiters_equation(src) == (
             '\\begin{equation}\nE = mc^2\n\\end{equation}'
         )
 
     def test_display_bracket_multiline(self):
         src = '\\[\n  a = b\n\\]'
-        assert rule19_math_delimiters_equation(src) == (
+        assert rule10_math_delimiters_equation(src) == (
             '\\begin{equation}\n  a = b\n\\end{equation}'
         )
 
     def test_double_dollar_single_line(self):
         src = '$$E = mc^2$$'
-        assert rule19_math_delimiters_equation(src) == (
+        assert rule10_math_delimiters_equation(src) == (
             '\\begin{equation}\nE = mc^2\n\\end{equation}'
         )
 
     def test_double_dollar_multiline(self):
         src = '$$\n  a = b\n$$'
-        assert rule19_math_delimiters_equation(src) == (
+        assert rule10_math_delimiters_equation(src) == (
             '\\begin{equation}\n  a = b\n\\end{equation}'
         )
 
     def test_inline_prose_left_alone(self):
         src = 'before \\[x\\] after and before $$y$$ after'
-        assert rule19_math_delimiters_equation(src) == src
+        assert rule10_math_delimiters_equation(src) == src
 
     def test_skip_comments(self):
         src = '% \\[x\\]\n\\[y\\]'
-        assert rule19_math_delimiters_equation(src) == (
+        assert rule10_math_delimiters_equation(src) == (
             '% \\[x\\]\n\\begin{equation}\ny\n\\end{equation}'
         )
 
     def test_skip_verbatim(self):
         src = '\\begin{verbatim}\n\\[x\\]\n\\end{verbatim}\n$$y$$'
-        assert rule19_math_delimiters_equation(src) == (
+        assert rule10_math_delimiters_equation(src) == (
             '\\begin{verbatim}\n\\[x\\]\n\\end{verbatim}\n'
             '\\begin{equation}\ny\n\\end{equation}'
         )
 
 
-# ── Rule 9: tilde before refs ───────────────────────────────────────
+# ── Rule 11: tilde before refs ──────────────────────────────────────
 
-class TestRule9:
+class TestRule11:
     def test_space_before_cref(self):
         src = 'see \\cref{sec:foo}'
-        assert rule9_tilde_before_refs(src) == 'see~\\cref{sec:foo}'
+        assert rule11_tilde_before_refs(src) == 'see~\\cref{sec:foo}'
 
     def test_space_before_ref(self):
         src = 'in \\ref{eq:one}'
-        assert rule9_tilde_before_refs(src) == 'in~\\ref{eq:one}'
+        assert rule11_tilde_before_refs(src) == 'in~\\ref{eq:one}'
 
     def test_space_before_cite(self):
         src = 'shown \\cite{smith2020}'
-        assert rule9_tilde_before_refs(src) == 'shown~\\cite{smith2020}'
+        assert rule11_tilde_before_refs(src) == 'shown~\\cite{smith2020}'
 
     def test_already_tilde(self):
         src = 'see~\\cref{sec:foo}'
-        assert rule9_tilde_before_refs(src) == src
+        assert rule11_tilde_before_refs(src) == src
 
 
-# ── Rule 10: number-unit spacing ────────────────────────────────────
+# ── Rule 12: number-unit spacing ────────────────────────────────────
 
-class TestRule10:
+class TestRule12:
     def test_tilde_to_thinspace(self):
-        assert rule10_number_unit_spacing('100~kN') == '100\\,kN'
+        assert rule12_number_unit_spacing('100~kN') == '100\\,kN'
 
     def test_space_to_thinspace(self):
-        assert rule10_number_unit_spacing('34 m/s') == '34\\,m/s'
+        assert rule12_number_unit_spacing('34 m/s') == '34\\,m/s'
 
     def test_no_false_positive(self):
         src = 'the 10 methods'
-        assert rule10_number_unit_spacing(src) == src
+        assert rule12_number_unit_spacing(src) == src
 
     def test_mm(self):
-        assert rule10_number_unit_spacing('60 mm') == '60\\,mm'
+        assert rule12_number_unit_spacing('60 mm') == '60\\,mm'
 
     def test_already_thinspace(self):
-        assert rule10_number_unit_spacing('100\\,kN') == '100\\,kN'
+        assert rule12_number_unit_spacing('100\\,kN') == '100\\,kN'
 
     def test_no_space_to_thinspace(self):
-        assert rule10_number_unit_spacing('100kN') == '100\\,kN'
+        assert rule12_number_unit_spacing('100kN') == '100\\,kN'
 
     def test_latex_spacing_to_thinspace(self):
-        assert rule10_number_unit_spacing('100\\;kN and 200\\quad kN') == \
+        assert rule12_number_unit_spacing('100\\;kN and 200\\quad kN') == \
             '100\\,kN and 200\\,kN'
 
     def test_no_space_bare_seconds_skipped(self):
-        assert rule10_number_unit_spacing('the 1990s') == 'the 1990s'
+        assert rule12_number_unit_spacing('the 1990s') == 'the 1990s'
 
     def test_dollar_number_tilde(self):
-        assert rule10_number_unit_spacing('$78$~kN') == '$78$\\,kN'
+        assert rule12_number_unit_spacing('$78$~kN') == '$78$\\,kN'
 
     def test_dollar_number_space(self):
-        assert rule10_number_unit_spacing('$78$ kN') == '$78$\\,kN'
+        assert rule12_number_unit_spacing('$78$ kN') == '$78$\\,kN'
 
     def test_dollar_number_no_space(self):
-        assert rule10_number_unit_spacing('$78$kN') == '$78$\\,kN'
+        assert rule12_number_unit_spacing('$78$kN') == '$78$\\,kN'
 
     def test_dollar_expression_space(self):
-        assert rule10_number_unit_spacing('$EI = 200$ MN') == '$EI = 200$\\,MN'
+        assert rule12_number_unit_spacing('$EI = 200$ MN') == '$EI = 200$\\,MN'
 
     def test_dollar_expression_no_space(self):
-        assert rule10_number_unit_spacing('$EI = 200$MN') == '$EI = 200$\\,MN'
+        assert rule12_number_unit_spacing('$EI = 200$MN') == '$EI = 200$\\,MN'
 
     def test_dollar_subscript_space(self):
-        assert rule10_number_unit_spacing(r'$\mu_P^{\text{true}} = 78$ kN') \
+        assert rule12_number_unit_spacing(r'$\mu_P^{\text{true}} = 78$ kN') \
             == r'$\mu_P^{\text{true}} = 78$\,kN'
 
     def test_dollar_already_thinspace(self):
-        assert rule10_number_unit_spacing('$5$\\,kN') == '$5$\\,kN'
+        assert rule12_number_unit_spacing('$5$\\,kN') == '$5$\\,kN'
 
     def test_dollar_non_numeric_skipped(self):
         # "$x$ kN" would be odd; the content doesn't end in a digit/brace
         # so no substitution occurs and the line is left alone.
-        assert rule10_number_unit_spacing('$x$ kN') == '$x$ kN'
+        assert rule12_number_unit_spacing('$x$ kN') == '$x$ kN'
 
 
-# ── Rule 11: old font commands ──────────────────────────────────────
+# ── Rule 13: old font commands ──────────────────────────────────────
 
-class TestRule11:
+class TestRule13:
     def test_bf(self):
-        assert rule11_old_font_commands('{\\bf bold}') == '\\textbf{bold}'
+        assert rule13_old_font_commands('{\\bf bold}') == '\\textbf{bold}'
 
     def test_it(self):
-        assert rule11_old_font_commands('{\\it italic}') == '\\textit{italic}'
+        assert rule13_old_font_commands('{\\it italic}') == '\\textit{italic}'
 
     def test_em(self):
-        assert rule11_old_font_commands('{\\em emph}') == '\\emph{emph}'
+        assert rule13_old_font_commands('{\\em emph}') == '\\emph{emph}'
 
     def test_tt(self):
-        assert rule11_old_font_commands('{\\tt code}') == '\\texttt{code}'
+        assert rule13_old_font_commands('{\\tt code}') == '\\texttt{code}'
 
     def test_no_match(self):
         src = '\\textbf{already modern}'
-        assert rule11_old_font_commands(src) == src
+        assert rule13_old_font_commands(src) == src
 
 
-# ── Rule 12: ellipsis ───────────────────────────────────────────────
+# ── Rule 14: ellipsis ───────────────────────────────────────────────
 
-class TestRule12:
+class TestRule14:
     def test_triple_dot(self):
-        assert rule12_ellipsis('and so on...') == 'and so on\\dots'
+        assert rule14_ellipsis('and so on...') == 'and so on\\dots'
 
     def test_already_dots(self):
         src = 'and so on\\dots'
-        assert rule12_ellipsis(src) == src
+        assert rule14_ellipsis(src) == src
 
     def test_skip_comment(self):
         src = '% text...'
-        assert rule12_ellipsis(src) == src
+        assert rule14_ellipsis(src) == src
 
 
-# ── Rule 13: ordinal suffixes ───────────────────────────────────────
+# ── Rule 15: ordinal suffixes ───────────────────────────────────────
 
-class TestRule13:
+class TestRule15:
     def test_textsuperscript_ordinal(self):
-        assert rule13_ordinal_suffixes(r'the 1\textsuperscript{st} DOF') == 'the 1st DOF'
+        assert rule15_ordinal_suffixes(r'the 1\textsuperscript{st} DOF') == 'the 1st DOF'
 
     def test_inline_math_ordinal(self):
-        assert rule13_ordinal_suffixes(r'the $2^{\text{nd}}$ DOF') == 'the 2nd DOF'
+        assert rule15_ordinal_suffixes(r'the $2^{\text{nd}}$ DOF') == 'the 2nd DOF'
 
     def test_split_inline_math_ordinal(self):
-        assert rule13_ordinal_suffixes(r'the 3$^{\mathrm{rd}}$ DOF') == 'the 3rd DOF'
+        assert rule15_ordinal_suffixes(r'the 3$^{\mathrm{rd}}$ DOF') == 'the 3rd DOF'
 
     def test_bare_math_ordinal(self):
-        assert rule13_ordinal_suffixes(r'the $4^{th}$ DOF') == 'the 4th DOF'
+        assert rule15_ordinal_suffixes(r'the $4^{th}$ DOF') == 'the 4th DOF'
 
     def test_skip_comment(self):
         src = r'% the 1\textsuperscript{st} DOF'
-        assert rule13_ordinal_suffixes(src) == src
+        assert rule15_ordinal_suffixes(src) == src
 
 
 # ── Warnings (individual functions) ─────────────────────────────────
@@ -544,12 +543,12 @@ class TestRegistry:
     def test_get_rule_missing(self):
         assert _get_rule('nonexistent') is None
 
-    def test_math_split_keeps_existing_rule_numbers_stable(self):
+    def test_math_delimiter_rules_are_grouped_by_number(self):
         assert _get_rule('math_delimiters_inline').num == 8
-        assert _get_rule('tilde_before_refs').num == 9
-        assert _get_rule('float_after_heading').num == 17
-        assert _get_rule('math_delimiters_display').num == 18
-        assert _get_rule('math_delimiters_equation').num == 19
+        assert _get_rule('math_delimiters_display').num == 9
+        assert _get_rule('math_delimiters_equation').num == 10
+        assert _get_rule('tilde_before_refs').num == 11
+        assert _get_rule('float_after_heading').num == 19
 
     def test_display_math_delimiters_default_off(self):
         assert _get_rule('math_delimiters_display').weight == 0
@@ -618,33 +617,23 @@ class TestThreshold:
         config = {'threshold': 5, 'weights': {'ellipsis': 9}}
         assert _effective_weight(r, config) == 9
 
-    def test_legacy_math_delimiters_weight_applies_to_split_rules(self):
-        """Old math_delimiters config should still affect both split rules."""
+    def test_unknown_math_delimiters_key_is_ignored(self):
         config = {'threshold': 5, 'weights': {'math_delimiters': 9}}
-        assert _effective_weight(_get_rule('math_delimiters_inline'), config) == 9
-        assert _effective_weight(_get_rule('math_delimiters_display'), config) == 9
+        assert _effective_weight(_get_rule('math_delimiters_inline'), config) == 5
+        assert _effective_weight(_get_rule('math_delimiters_display'), config) == 0
 
-    def test_explicit_split_math_weight_overrides_legacy_weight(self):
+    def test_split_math_delimiter_weights_use_rule_ids(self):
         config = {
             'threshold': 5,
-            'weights': {'math_delimiters': 9, 'math_delimiters_display': 0},
+            'weights': {
+                'math_delimiters_inline': 9,
+                'math_delimiters_display': 0,
+                'math_delimiters_equation': 5,
+            },
         }
         assert _effective_weight(_get_rule('math_delimiters_inline'), config) == 9
         assert _effective_weight(_get_rule('math_delimiters_display'), config) == 0
-
-    def test_save_config_migrates_legacy_math_delimiters_weight(self, tmp_path):
-        config = {'threshold': 5, 'weights': {'math_delimiters': 0}}
-        path = tmp_path / '.clat.toml'
-        save_config(config, path)
-        saved = path.read_text()
-        assert any(
-            line.startswith('math_delimiters_inline') and '=  0' in line
-            for line in saved.splitlines()
-        )
-        assert any(
-            line.startswith('math_delimiters_display') and '=  0' in line
-            for line in saved.splitlines()
-        )
+        assert _effective_weight(_get_rule('math_delimiters_equation'), config) == 5
 
     def test_text_still_fixed_below_threshold(self):
         """Fixable rules below threshold should still fix the text."""

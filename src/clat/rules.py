@@ -10,7 +10,7 @@ At runtime, the user's threshold decides what happens:
   off:    weight <= 0                           → disabled
 
 Fixable rules are swept to a text fixed point by default. Run ``clat list`` to
-see all rules. Configure via ``.clat.toml`` or ``clat set <rule#> <weight>``.
+see all rules. Configure via ``.clat.toml`` or ``clat set <rule-id> <weight>``.
 """
 
 import re
@@ -395,7 +395,7 @@ def rule8_math_delimiters_inline(text):
     return '\n'.join(result)
 
 
-def rule18_math_delimiters_display(text):
+def rule9_math_delimiters_display(text):
     """\\[...\\] -> $$...$$.
 
     Converts the verbose LaTeX2e display-math delimiters to the short
@@ -428,7 +428,7 @@ def _convert_display_math_to_equation_chunk(text):
     return _DISPLAY_TO_EQUATION_RE.sub(_display_math_to_equation, text)
 
 
-def rule19_math_delimiters_equation(text):
+def rule10_math_delimiters_equation(text):
     """\\[...\\] or $$...$$ -> equation environment.
 
     Only standalone display-math delimiter blocks are converted. Lines that are
@@ -466,14 +466,14 @@ def rule19_math_delimiters_equation(text):
     return ''.join(result)
 
 
-def rule9_tilde_before_refs(text):
+def rule11_tilde_before_refs(text):
     """Ensure ~ before \\ref, \\cref, \\eqref, \\cite."""
     return re.sub(
         r'(?<=[A-Za-z0-9).])\s+(\\(?:c?ref|eqref|cite|Cref)\{)',
         r'~\1', text)
 
 
-def rule10_number_unit_spacing(text):
+def rule12_number_unit_spacing(text):
     """Normalise number-unit spacing to a non-expanding thin space.
 
     Handles ordinary spaces, non-breaking spaces, LaTeX spacing commands, and
@@ -533,7 +533,7 @@ def rule10_number_unit_spacing(text):
     return text
 
 
-def rule11_old_font_commands(text):
+def rule13_old_font_commands(text):
     """{\\bf text} -> \\textbf{text}, etc."""
     for old, new in _FONT_MAP.items():
         pattern = re.compile(r'\{\\' + old + r'\s+([^{}]+)\}')
@@ -541,7 +541,7 @@ def rule11_old_font_commands(text):
     return text
 
 
-def rule12_ellipsis(text):
+def rule14_ellipsis(text):
     """... -> \\dots (not in comments or verbatim)."""
     lines = text.split('\n')
     result = []
@@ -558,7 +558,7 @@ def rule12_ellipsis(text):
     return '\n'.join(result)
 
 
-def rule13_ordinal_suffixes(text):
+def rule15_ordinal_suffixes(text):
     """Convert superscript ordinal suffixes to plain text (1st, 2nd, ...)."""
     suffix = r'(st|nd|rd|th)'
     wrapped_suffix = (
@@ -697,20 +697,19 @@ RULES = [
     Rule( 5, 'equation_punctuation', 'Add trailing comma or period to display equations',         rule4_equation_punctuation,      weight=6, fixable=True,  order=50),
     Rule( 6, 'float_indentation',    'Tab-indent content inside figure/table/list environments',  rule6_figure_indentation,        weight=5, fixable=True,  order=60),
     Rule( 7, 'one_sentence_per_line','Split sentences onto individual lines',                     rule3_one_sentence_per_line,     weight=8, fixable=True,  order=70),
-    Rule( 8, 'math_delimiters_inline','Replace \\(...\\) with $...$',                           rule8_math_delimiters_inline,   weight=5, fixable=True,  order=80),
-    Rule( 9, 'tilde_before_refs',    'Ensure non-breaking space before \\ref, \\cite etc.',       rule9_tilde_before_refs,         weight=7, fixable=True,  order=90),
-    Rule(10, 'number_unit_spacing',  'Normalise number-unit spacing (100\\,kN)',                 rule10_number_unit_spacing,      weight=6, fixable=True,  order=100),
-    Rule(11, 'old_font_commands',    'Replace {\\bf text} with \\textbf{text} etc.',              rule11_old_font_commands,        weight=5, fixable=True,  order=110),
-    Rule(12, 'ellipsis',             'Replace ... with \\dots',                                   rule12_ellipsis,                 weight=4, fixable=True,  order=120),
-    Rule(13, 'ordinal_suffixes',     'Convert superscript ordinals to plain text (1st, 2nd)',     rule13_ordinal_suffixes,         weight=8, fixable=True,  order=130),
+    Rule( 8, 'math_delimiters_inline','Replace \\(...\\) with $...$',                           rule8_math_delimiters_inline,    weight=5, fixable=True,  order=80),
+    Rule( 9, 'math_delimiters_display','Replace \\[...\\] with $$...$$',                         rule9_math_delimiters_display,   weight=0, fixable=True,  order=85),
+    Rule(10, 'math_delimiters_equation','Replace \\[...\\] or $$...$$ with equation environment', rule10_math_delimiters_equation, weight=0, fixable=True,  order=35),
+    Rule(11, 'tilde_before_refs',    'Ensure non-breaking space before \\ref, \\cite etc.',       rule11_tilde_before_refs,        weight=7, fixable=True,  order=90),
+    Rule(12, 'number_unit_spacing',  'Normalise number-unit spacing (100\\,kN)',                 rule12_number_unit_spacing,      weight=6, fixable=True,  order=100),
+    Rule(13, 'old_font_commands',    'Replace {\\bf text} with \\textbf{text} etc.',              rule13_old_font_commands,        weight=5, fixable=True,  order=110),
+    Rule(14, 'ellipsis',             'Replace ... with \\dots',                                   rule14_ellipsis,                 weight=4, fixable=True,  order=120),
+    Rule(15, 'ordinal_suffixes',     'Convert superscript ordinals to plain text (1st, 2nd)',     rule15_ordinal_suffixes,         weight=8, fixable=True,  order=130),
     # Unfixable rules (warnings / clunks)
-    Rule(14, 'long_file',            'Warn if file exceeds 2000 lines',                           warn_long_file,                  weight=3, fixable=False, order=200),
-    Rule(15, 'hardcoded_refs',       'Detect "Figure 3" instead of \\cref{...}',                  warn_hardcoded_refs,             weight=6, fixable=False, order=210),
-    Rule(16, 'manual_sizing',        'Detect \\big, \\Big etc. (prefer \\left/\\right)',          warn_manual_sizing,              weight=3, fixable=False, order=220),
-    Rule(17, 'float_after_heading',  'Detect float placed directly after a heading',              warn_float_after_heading,        weight=4, fixable=False, order=230),
-    # New rules are appended so existing numeric configuration remains stable.
-    Rule(18, 'math_delimiters_display','Replace \\[...\\] with $$...$$',                         rule18_math_delimiters_display, weight=0, fixable=True,  order=85),
-    Rule(19, 'math_delimiters_equation','Replace \\[...\\] or $$...$$ with equation environment', rule19_math_delimiters_equation, weight=0, fixable=True,  order=35),
+    Rule(16, 'long_file',            'Warn if file exceeds 2000 lines',                           warn_long_file,                  weight=3, fixable=False, order=200),
+    Rule(17, 'hardcoded_refs',       'Detect "Figure 3" instead of \\cref{...}',                  warn_hardcoded_refs,             weight=6, fixable=False, order=210),
+    Rule(18, 'manual_sizing',        'Detect \\big, \\Big etc. (prefer \\left/\\right)',          warn_manual_sizing,              weight=3, fixable=False, order=220),
+    Rule(19, 'float_after_heading',  'Detect float placed directly after a heading',              warn_float_after_heading,        weight=4, fixable=False, order=230),
 ]
 
 
@@ -763,21 +762,9 @@ def load_config(path=None):
     return {'threshold': DEFAULT_THRESHOLD, 'weights': {}}
 
 
-_LEGACY_WEIGHT_IDS = {
-    'math_delimiters_inline': 'math_delimiters',
-    'math_delimiters_display': 'math_delimiters',
-}
-
-
 def _effective_weight(rule, config):
     """Return the weight for a rule, with config override if present."""
-    weights = config['weights']
-    if rule.id in weights:
-        return weights[rule.id]
-    legacy_id = _LEGACY_WEIGHT_IDS.get(rule.id)
-    if legacy_id and legacy_id in weights:
-        return weights[legacy_id]
-    return rule.weight
+    return config['weights'].get(rule.id, rule.weight)
 
 
 def generate_default_config():
@@ -881,8 +868,6 @@ def texfmt(text, filename='<input>', config=None, max_iter=DEFAULT_MAX_ITER):
     changes, or until ``max_iter`` sweeps have run. Detect-only rules are then
     evaluated once against the final text.
 
-    For backwards compatibility, also accessible as (text, warnings) via
-    the legacy property — but prefer ClatResult directly.
     """
     if max_iter < 1:
         raise ValueError('max_iter must be >= 1')

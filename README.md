@@ -140,18 +140,18 @@ Run `clat list` to see all rules with their numbers, weights, and current catego
 |  5 | equation_punctuation  |    6    |   yes   | Add trailing comma or period to display equations          |
 |  6 | float_indentation     |    5    |   yes   | Tab-indent content inside figure/table/list environments   |
 |  7 | one_sentence_per_line |    8    |   yes   | Split sentences onto individual lines                      |
-|  8 | math_delimiters_inline  |    5    |   yes   | Replace `\(...\)` with `$...$`                         |
-|  9 | tilde_before_refs        |    7    |   yes   | Ensure `~` before `\ref`, `\cite` etc.                  |
-| 10 | number_unit_spacing      |    6    |   yes   | Normalise number-unit spacing (`100\,kN`)               |
-| 11 | old_font_commands        |    5    |   yes   | Replace `{\bf text}` with `\textbf{text}` etc.          |
-| 12 | ellipsis                 |    4    |   yes   | Replace `...` with `\dots`                              |
-| 13 | ordinal_suffixes         |    8    |   yes   | Convert superscript ordinals to plain text (`1st`, `2nd`)|
-| 14 | long_file                |    3    |   no    | Warn if file exceeds 2000 lines                         |
-| 15 | hardcoded_refs           |    6    |   no    | Detect `Figure 3` instead of `\cref{...}`               |
-| 16 | manual_sizing            |    3    |   no    | Detect `\big`, `\Big` etc.                              |
-| 17 | float_after_heading      |    4    |   no    | Detect float placed directly after a heading            |
-| 18 | math_delimiters_display |    0    |   yes   | Replace `\[...\]` with `$$...$$`                       |
-| 19 | math_delimiters_equation |    0    |   yes   | Replace `\[...\]` or `$$...$$` with `equation`          |
+|  8 | math_delimiters_inline   |    5    |   yes   | Replace `\(...\)` with `$...$`                         |
+|  9 | math_delimiters_display  |    0    |   yes   | Replace `\[...\]` with `$$...$$`                       |
+| 10 | math_delimiters_equation |    0    |   yes   | Replace `\[...\]` or `$$...$$` with `equation`          |
+| 11 | tilde_before_refs        |    7    |   yes   | Ensure `~` before `\ref`, `\cite` etc.                  |
+| 12 | number_unit_spacing      |    6    |   yes   | Normalise number-unit spacing (`100\,kN`)                |
+| 13 | old_font_commands        |    5    |   yes   | Replace `{\bf text}` with `\textbf{text}` etc.          |
+| 14 | ellipsis                 |    4    |   yes   | Replace `...` with `\dots`                              |
+| 15 | ordinal_suffixes         |    8    |   yes   | Convert superscript ordinals to plain text (`1st`, `2nd`)|
+| 16 | long_file                |    3    |   no    | Warn if file exceeds 2000 lines                          |
+| 17 | hardcoded_refs           |    6    |   no    | Detect `Figure 3` instead of `\cref{...}`                |
+| 18 | manual_sizing            |    3    |   no    | Detect `\big`, `\Big` etc.                              |
+| 19 | float_after_heading      |    4    |   no    | Detect float placed directly after a heading             |
 
 ## Configuration
 
@@ -187,11 +187,14 @@ clat set --threshold 8
 ### Set a rule weight
 
 ```bash
-# By rule number (see clat list)
-clat set 12 9     # set rule 12 (ellipsis) to weight 9
-clat set 15 2     # demote hardcoded refs to a splat
-clat set 18 5     # enable display math delimiter conversion
-clat set 19 5     # convert display math delimiters to equation environments
+# Prefer rule ids for scripts/configuration
+clat set ellipsis 9                  # set ellipsis to weight 9
+clat set hardcoded_refs 2            # demote hardcoded refs to a splat
+clat set math_delimiters_display 5   # enable display math delimiter conversion
+clat set math_delimiters_equation 5  # convert display delimiters to equation
+
+# List numbers are also accepted for interactive use
+clat set 14 9
 ```
 
 ### Reset to defaults
@@ -223,7 +226,8 @@ clat --max-iter N <files>    Maximum fixable-rule sweeps (default 5)
 clat list                    List all rules with weights and categories
 clat list --config path      Use a specific config file
 
-clat set <rule#> <weight>    Set a rule weight in .clat.toml (0 disables)
+clat set <rule-id|rule#> <weight>
+                                Set a rule weight in .clat.toml (0 disables)
 clat set --threshold N       Set the threshold in .clat.toml
 clat set --init              Create .clat.toml with defaults
 clat set --reset             Restore .clat.toml to defaults
@@ -264,7 +268,7 @@ weight <= 0                       =>  off (disabled)
 
 Fixable rules below threshold are still applied (the text is still fixed),
 but reported as splats rather than clangs. Set a rule's weight to `0` to
-disable it entirely. Use `--max-iter 1` for legacy single-pass behaviour.
+disable it entirely. Use `--max-iter 1` for single-pass behaviour.
 
 ## Development
 
