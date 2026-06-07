@@ -14,9 +14,10 @@ Pass as many files as you like:
 clat main.tex appendix.tex sections/*.tex
 ```
 
-Each enabled fixable rule is applied, and clat prints a short report of what it
-did. The threshold controls whether fixes are reported as clangs or quieter
-splats; weight `0` disables a rule.
+Enabled fixable rules are applied repeatedly until the text stops changing
+(default: up to 5 sweeps), and clat prints a short report of what it did. The
+threshold controls whether fixes are reported as clangs or quieter splats;
+weight `0` disables a rule.
 
 ## Format a whole document
 
@@ -103,3 +104,16 @@ clat --threshold 9 main.tex   # only the highest-weight rules fire loudly
 ```
 
 To make a change stick, see [Configuration](configuration.md).
+
+## Limit rule sweeps
+
+By default clat sweeps enabled fixable rules until a full pass makes no text
+changes, up to 5 iterations. This helps interacting rules compose cleanly. To
+restore legacy single-pass behaviour:
+
+```bash
+clat --max-iter 1 main.tex
+```
+
+If clat reaches the iteration limit before convergence, it reports a clunk-style
+warning so you can spot possible rule interactions.

@@ -26,7 +26,9 @@ from clat.rules import (
     texfmt,
     ClatResult,
     RULES,
+    Rule,
     DEFAULT_THRESHOLD,
+    DEFAULT_MAX_ITER,
     _effective_weight,
     _get_rule,
     save_config,
@@ -570,6 +572,9 @@ class TestThreshold:
     def test_default_threshold(self):
         assert DEFAULT_THRESHOLD == 5
 
+    def test_default_max_iter(self):
+        assert DEFAULT_MAX_ITER == 5
+
     def test_high_weight_fixable_is_clang(self):
         """A fixable rule above threshold should produce a clang."""
         src = '\\section{Foo}\n\\label{sec:foo}'
@@ -684,6 +689,73 @@ class TestThreshold:
         result = texfmt(src, 'test.tex', config=config)
         assert result.text == '\\begin{equation}\ny\n\\end{equation}'
         assert 'math_delimiters_equation' in [r.id for r, _ in result.clangs]
+
+    def test_max_iter_must_be_positive(self):
+        with pytest.raises(ValueError, match='max_iter must be >= 1'):
+            texfmt('hello', 'test.tex', max_iter=0)
+
+    def test_fixable_rules_sweep_to_fixed_point(self):
+        def a_to_b(text):
+            return text.replace('A', 'B')
+
+        def b_to_c(text):
+            return text.replace('B', 'C')
+
+        fake_a = Rule(98, 'test_a_to_b', 'A to B', a_to_b, 5, True, 100)
+        fake_b = Rule(99, 'test_b_to_c', 'B to C', b_to_c, 5, True, 10)
+        RULES.extend([fake_a, fake_b])
+        try:
+            result = texfmt('A', 'test.tex', max_iter=3)
+        finally:
+            RULES.remove(fake_a)
+            RULES.remove(fake_b)
+
+        assert result.text == 'C'
+        assert result.converged is True
+        assert result.iterations == 3
+        assert not any(item[0].id == 'max_iter' for item in result.clunks)
+        assert [r.id for r, _ in result.clangs][-2:] == ['test_b_to_c', 'test_a_to_b']
+
+    def test_max_iter_exhaustion_reports_clunk(self):
+        def a_to_b(text):
+            return text.replace('A', 'B')
+
+        def b_to_c(text):
+            return text.replace('B', 'C')
+
+        fake_a = Rule(98, 'test_a_to_b', 'A to B', a_to_b, 5, True, 100)
+        fake_b = Rule(99, 'test_b_to_c', 'B to C', b_to_c, 5, True, 10)
+        RULES.extend([fake_a, fake_b])
+        try:
+            result = texfmt('A', 'test.tex', max_iter=2)
+        finally:
+            RULES.remove(fake_a)
+            RULES.remove(fake_b)
+
+        assert result.text == 'C'
+        assert result.converged is False
+        assert result.iterations == 2
+        assert any(item[0].id == 'max_iter' for item in result.clunks)
+
+    def test_max_iter_one_preserves_single_pass_behaviour(self):
+        def a_to_b(text):
+            return text.replace('A', 'B')
+
+        def b_to_c(text):
+            return text.replace('B', 'C')
+
+        fake_a = Rule(98, 'test_a_to_b', 'A to B', a_to_b, 5, True, 100)
+        fake_b = Rule(99, 'test_b_to_c', 'B to C', b_to_c, 5, True, 10)
+        RULES.extend([fake_a, fake_b])
+        try:
+            result = texfmt('A', 'test.tex', max_iter=1)
+        finally:
+            RULES.remove(fake_a)
+            RULES.remove(fake_b)
+
+        assert result.text == 'B'
+        assert result.converged is False
+        assert not any(item[0].id == 'max_iter' for item in result.clunks)
 
     def test_result_type(self):
         result = texfmt('hello', 'test.tex')

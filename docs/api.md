@@ -25,6 +25,13 @@ config = {"threshold": 8, "weights": {"ellipsis": 9}}
 result = texfmt(source, config=config)
 ```
 
+By default, `texfmt` runs fixable rules to a text fixed point, up to 5 sweeps.
+Pass `max_iter=1` for single-pass behaviour:
+
+```python
+result = texfmt(source, config=config, max_iter=1)
+```
+
 ---
 
 ## Formatting

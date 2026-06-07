@@ -38,6 +38,11 @@ threshold, and whether the rule is auto-fixable:
     threshold controls how much noise clat makes, not whether safe fixes
     happen. Set a rule's weight to `0` to disable it entirely.
 
+!!! note "Fixable rules sweep to convergence"
+    clat runs enabled fixable rules repeatedly until a full sweep leaves the
+    text unchanged, up to 5 iterations by default. Use `--max-iter 1` for
+    single-pass behaviour.
+
 ## Why "clat"?
 
 Prosaically, `clat` is Colin's LaTeX Tool. But the name also has a bit of

@@ -11,6 +11,7 @@ clat --check <files...>      Dry run: report issues without fixing
 clat --check -r <root.tex>   Dry run a multi-file document
 clat -o out.tex in.tex       Write to a different file
 clat --threshold N <files>   Override threshold for this run
+clat --max-iter N <files>    Maximum fixable-rule sweeps (default 5)
 
 clat list                    List all rules with weights and categories
 clat list --config path      Use a specific config file
@@ -34,6 +35,8 @@ clat [options] <files...>
 
 Apply the configured rules to one or more `.tex` files. By default files are
 rewritten **in place**; a file is only touched if something actually changes.
+Fixable rules are swept to a text fixed point by default (up to 5 sweeps), then
+detect-only rules run once on the final text.
 
 | Option | Description |
 |--------|-------------|
@@ -43,6 +46,7 @@ rewritten **in place**; a file is only touched if something actually changes.
 | `--check`             | Dry run — report what would change without modifying any file. |
 | `--config PATH`       | Read configuration from `PATH` instead of the default search locations. |
 | `--threshold N`       | Override the threshold for this run only (does not edit the config). |
+| `--max-iter N`        | Maximum fixable-rule sweeps before stopping. Default: `5`; use `1` for single-pass behaviour. |
 | `--version`           | Print the clat version and exit. |
 
 **Examples**
@@ -55,6 +59,7 @@ clat --check -r main.tex           # dry run the whole multi-file document
 clat --check main.tex              # dry run
 clat -o clean.tex main.tex         # write elsewhere, leave the input alone
 clat --threshold 3 main.tex        # one-off stricter run
+clat --max-iter 1 main.tex         # legacy single-pass run
 ```
 
 **Exit status**
@@ -62,7 +67,7 @@ clat --threshold 3 main.tex        # one-off stricter run
 | Code | Meaning |
 |------|---------|
 | `0`  | Clean — nothing to fix or flag. |
-| `1`  | Issues found: a missing file, or any remaining clunks/splats (and, under `--check`, any pending fixes). |
+| `1`  | Issues found: a missing file, any remaining clunks/splats, max-iteration non-convergence, or (under `--check`) any pending fixes. |
 
 The non-zero exit on outstanding issues makes `clat --check` suitable for CI
 and pre-commit hooks.

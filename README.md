@@ -122,6 +122,9 @@ clat list
 
 # Override threshold for one run
 clat --threshold 3 main.tex
+
+# Limit formatting to a single pass instead of fixed-point sweeps
+clat --max-iter 1 main.tex
 ```
 
 ## Rules
@@ -215,6 +218,7 @@ clat --check <files...>      Dry run: report issues without fixing
 clat --check -r <root.tex>   Dry run a multi-file document
 clat -o out.tex in.tex       Write to a different file
 clat --threshold N <files>   Override threshold for this run
+clat --max-iter N <files>    Maximum fixable-rule sweeps (default 5)
 
 clat list                    List all rules with weights and categories
 clat list --config path      Use a specific config file
@@ -246,8 +250,10 @@ are reported through the normal formatter output.
 ## How it works
 
 Each rule is either **fixable** (clat can rewrite the source) or **unfixable**
-(clat can only detect the issue). At runtime, each rule's weight is compared
-to the threshold:
+(clat can only detect the issue). clat applies enabled fixable rules repeatedly
+until a full sweep makes no text changes, up to `--max-iter` sweeps (default
+`5`). Then detect-only rules run once on the final text. At runtime, each rule's
+weight is compared to the threshold:
 
 ```
 weight >= threshold + fixable     =>  clang (auto-fixed)
@@ -258,7 +264,7 @@ weight <= 0                       =>  off (disabled)
 
 Fixable rules below threshold are still applied (the text is still fixed),
 but reported as splats rather than clangs. Set a rule's weight to `0` to
-disable it entirely.
+disable it entirely. Use `--max-iter 1` for legacy single-pass behaviour.
 
 ## Development
 

@@ -26,10 +26,12 @@ categories.
 | 18 | `math_delimiters_display`  |    0    |   ✓   | Replace `\[...\]` with `$$...$$`                    |
 | 19 | `math_delimiters_equation` |    0    |   ✓   | Replace `\[...\]` or `$$...$$` with `equation`      |
 
-!!! tip "Order matters"
+!!! tip "Order still matters, but sweeps help"
     Fixable rules are applied in a fixed sequence (decorative comments are
     stripped before sentences are split, labels are merged before heading
-    spacing is computed, and so on) so the fixes compose cleanly.
+    spacing is computed, and so on). clat then repeats that sequence until a
+    full sweep makes no text changes, up to `--max-iter` iterations, so
+    interacting rules can settle to a fixed point.
 
 ---
 

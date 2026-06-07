@@ -9,8 +9,8 @@ At runtime, the user's threshold decides what happens:
   splat:  0 < weight < threshold                → advisory
   off:    weight <= 0                           → disabled
 
-Run ``clat list`` to see all rules. Configure via ``.clat.toml``
-or ``clat set <rule#> <weight>``.
+Fixable rules are swept to a text fixed point by default. Run ``clat list`` to
+see all rules. Configure via ``.clat.toml`` or ``clat set <rule#> <weight>``.
 """
 
 import re
@@ -116,6 +116,7 @@ def _pop_env(env_stack, env):
 # ── Rule registry ───────────────────────────────────────────────────
 
 DEFAULT_THRESHOLD = 5
+DEFAULT_MAX_ITER = 5
 
 
 @dataclass
@@ -831,6 +832,25 @@ def save_config(config, path):
 
 # ── Main entry point ─────────────────────────────────────────────────
 
+_MAX_ITER_RULE = Rule(
+    0,
+    'max_iter',
+    'Max iterations reached before convergence',
+    lambda text, filename=None: [],
+    weight=10,
+    fixable=False,
+    order=0,
+)
+
+
+def _count_text_changes(original, formatted):
+    orig_lines = original.split('\n')
+    fmt_lines = formatted.split('\n')
+    changes = sum(1 for a, b in zip(orig_lines, fmt_lines) if a != b)
+    changes += abs(len(orig_lines) - len(fmt_lines))
+    return changes
+
+
 @dataclass
 class ClatResult:
     """Result of running clat on a file.
@@ -841,21 +861,32 @@ class ClatResult:
     clangs : list[tuple] — (rule, count) for auto-fixed rules above threshold
     clunks : list[tuple] — (rule, filename, line, msg) for unfixable issues above threshold
     splats : list[tuple] — (rule, filename, line, msg) for issues below threshold
+    iterations : int      — number of fixable-rule sweeps performed
+    converged : bool      — True if a sweep completed with no text changes
     """
     text: str
     clangs: list = field(default_factory=list)
     clunks: list = field(default_factory=list)
     splats: list = field(default_factory=list)
+    iterations: int = 0
+    converged: bool = True
 
 
-def texfmt(text, filename='<input>', config=None):
+def texfmt(text, filename='<input>', config=None, max_iter=DEFAULT_MAX_ITER):
     """Apply formatting rules according to config.
 
     Returns a ClatResult with the formatted text and categorised issues.
 
+    Fixable rules are applied repeatedly until a full sweep makes no text
+    changes, or until ``max_iter`` sweeps have run. Detect-only rules are then
+    evaluated once against the final text.
+
     For backwards compatibility, also accessible as (text, warnings) via
     the legacy property — but prefer ClatResult directly.
     """
+    if max_iter < 1:
+        raise ValueError('max_iter must be >= 1')
+
     if config is None:
         config = {'threshold': DEFAULT_THRESHOLD, 'weights': {}}
 
@@ -864,33 +895,63 @@ def texfmt(text, filename='<input>', config=None):
 
     # Sort rules by order for deterministic application
     sorted_rules = sorted(RULES, key=lambda r: r.order)
+    fixable_rules = [r for r in sorted_rules if r.fixable]
+    detect_rules = [r for r in sorted_rules if not r.fixable]
+    clang_counts = {}
+    fixable_splats = set()
 
-    for rule in sorted_rules:
+    for sweep in range(max_iter):
+        sweep_start = result.text
+        result.iterations = sweep + 1
+
+        for rule in fixable_rules:
+            w = _effective_weight(rule, config)
+            if w <= 0:
+                continue
+
+            original = result.text
+            result.text = rule.fn(result.text)
+            if result.text == original:
+                continue
+
+            n_hits = _count_text_changes(original, result.text)
+            if w >= threshold:
+                clang_counts[rule.id] = clang_counts.get(rule.id, 0) + n_hits
+            else:
+                # Below threshold: still fix, but report as splat.
+                fixable_splats.add(rule.id)
+
+        if result.text == sweep_start:
+            result.converged = True
+            break
+    else:
+        result.converged = False
+
+    for rule in fixable_rules:
+        count = clang_counts.get(rule.id)
+        if count:
+            result.clangs.append((rule, count))
+        if rule.id in fixable_splats:
+            result.splats.append((rule, filename, 0, f'{rule.name} (auto-fixed)'))
+
+    for rule in detect_rules:
         w = _effective_weight(rule, config)
         if w <= 0:
             continue
+        issues = rule.fn(result.text, filename)
+        for fname, line, msg in issues:
+            if w >= threshold:
+                result.clunks.append((rule, fname, line, msg))
+            else:
+                result.splats.append((rule, fname, line, msg))
 
-        if rule.fixable:
-            original = result.text
-            result.text = rule.fn(result.text)
-            if result.text != original:
-                orig_lines = original.split('\n')
-                new_lines = result.text.split('\n')
-                n_hits = (sum(1 for a, b in zip(orig_lines, new_lines)
-                              if a != b)
-                          + abs(len(orig_lines) - len(new_lines)))
-                if w >= threshold:
-                    result.clangs.append((rule, n_hits))
-                else:
-                    # Below threshold: still fix, but report as splat
-                    result.splats.append((rule, filename, 0,
-                                         f'{rule.name} (auto-fixed)'))
-        else:
-            issues = rule.fn(result.text, filename)
-            for fname, line, msg in issues:
-                if w >= threshold:
-                    result.clunks.append((rule, fname, line, msg))
-                else:
-                    result.splats.append((rule, fname, line, msg))
+    if not result.converged and max_iter > 1:
+        result.clunks.append((
+            _MAX_ITER_RULE,
+            filename,
+            0,
+            f'max iterations ({max_iter}) reached before convergence; '
+            'possible rule interaction cycle',
+        ))
 
     return result

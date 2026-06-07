@@ -13,6 +13,7 @@ Usage:
   clat file.tex [file2.tex ...]    Format files
   clat -r main.tex                 Format files found through LaTeX inputs
   clat --check file.tex            Dry run
+  clat --max-iter N                Maximum fixable-rule sweeps (default 5)
   clat list                        List rules, weights, and categories
   clat set <rule#> <weight>        Set a rule weight in .clat.toml (0 disables)
   clat set --threshold N           Set the threshold
@@ -30,7 +31,7 @@ from rich.text import Text
 from . import __version__
 from .rules import (
     texfmt, load_config, save_config, generate_default_config,
-    RULES, DEFAULT_THRESHOLD, _effective_weight, _get_rule_by_num,
+    RULES, DEFAULT_THRESHOLD, DEFAULT_MAX_ITER, _effective_weight, _get_rule_by_num,
 )
 from .personality import (
     GREETINGS, CLEAN, FIXED, CLUNK_INTROS, SPLAT_INTROS,
@@ -405,6 +406,11 @@ def _cmd_format(argv):
     parser.add_argument('--config', help='Path to .clat.toml')
     parser.add_argument('--threshold', type=int, default=None,
                         help='Override threshold for this run')
+    parser.add_argument('--max-iter', type=int, default=DEFAULT_MAX_ITER,
+                        help=(
+                            'Maximum fixable-rule sweeps before stopping '
+                            f'(default: {DEFAULT_MAX_ITER}; use 1 for single pass)'
+                        ))
     parser.add_argument('--version', action='version',
                         version=f'clat {__version__}')
     args = parser.parse_args(argv)
@@ -413,6 +419,8 @@ def _cmd_format(argv):
         parser.error('-o/--output only works with a single input file')
     if args.output and args.recursive:
         parser.error('-o/--output cannot be used with -r/--recursive')
+    if args.max_iter < 1:
+        parser.error('--max-iter must be >= 1')
 
     config = load_config(args.config)
     if args.threshold is not None:
@@ -437,7 +445,9 @@ def _cmd_format(argv):
             any_issues = True
             continue
 
-        result = texfmt(original, filename=filepath, config=config)
+        result = texfmt(
+            original, filename=filepath, config=config, max_iter=args.max_iter
+        )
         n_fixes = _count_changes(original, result.text)
 
         if args.check:
