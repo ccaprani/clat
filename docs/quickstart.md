@@ -62,7 +62,7 @@ clat list
 ```
 
 ```text
-clat v0.4.0  …
+clat v0.5.0  …
   threshold = 5
 
   ✓  1: clang  w=8   labels_inline

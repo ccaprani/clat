@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/wordmark-dark.png">
+    <img src="assets/wordmark-light.png" width="340" alt="clat — Opinionated LaTeX Tidy">
+  </picture>
+</p>
+
 # clat
 
 [![PyPI](https://img.shields.io/pypi/v/clat-tidy?color=3949ab)](https://pypi.org/project/clat-tidy/)
