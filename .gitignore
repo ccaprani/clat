@@ -1,15 +1,37 @@
-# Python
+# Python bytecode / caches
 __pycache__/
 *.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.pyre/
+.ruff_cache/
+.hypothesis/
+
+# Packaging / build artifacts
 *.egg-info/
+*.egg
+.eggs/
 build/
 dist/
-.pytest_cache/
+pip-wheel-metadata/
+
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
 
 # Virtual environments
 .venv/
 .venv-docs/
 venv/
+env/
+ENV/
+
+# Local environment files
+.env
+.env.*
 
 # MkDocs build output
 /site/

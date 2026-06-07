@@ -404,6 +404,67 @@ def rule18_math_delimiters_display(text):
     return re.sub(r'\\\[(.*?)\\\]', r'$$\1$$', text, flags=re.DOTALL)
 
 
+_DISPLAY_TO_EQUATION_RE = re.compile(
+    r'(?ms)^(?P<indent>[ \t]*)(?:'
+    r'\\\[(?P<bracket>.*?)\\\]|'
+    r'\$\$(?P<dollar>.*?)\$\$'
+    r')[ \t]*$'
+)
+
+
+def _display_math_to_equation(match):
+    indent = match.group('indent')
+    content = match.group('bracket')
+    if content is None:
+        content = match.group('dollar')
+    body = content.strip('\n')
+    if not (content.startswith('\n') or content.endswith('\n')):
+        body = body.strip()
+    return f'{indent}\\begin{{equation}}\n{body}\n{indent}\\end{{equation}}'
+
+
+def _convert_display_math_to_equation_chunk(text):
+    return _DISPLAY_TO_EQUATION_RE.sub(_display_math_to_equation, text)
+
+
+def rule19_math_delimiters_equation(text):
+    """\\[...\\] or $$...$$ -> equation environment.
+
+    Only standalone display-math delimiter blocks are converted. Lines that are
+    comments, and verbatim/lstlisting blocks, are skipped.
+    """
+    lines = text.splitlines(keepends=True)
+    result = []
+    chunk = []
+    in_verbatim = False
+
+    def flush_chunk():
+        if chunk:
+            result.append(_convert_display_math_to_equation_chunk(''.join(chunk)))
+            chunk.clear()
+
+    for line in lines:
+        stripped = line.strip()
+        starts_verbatim = re.match(r'^\\begin\{(verbatim|lstlisting)\}', stripped)
+        ends_verbatim = re.match(r'^\\end\{(verbatim|lstlisting)\}', stripped)
+
+        if in_verbatim or starts_verbatim:
+            flush_chunk()
+            result.append(line)
+            in_verbatim = not bool(ends_verbatim)
+            continue
+
+        if stripped.startswith('%'):
+            flush_chunk()
+            result.append(line)
+            continue
+
+        chunk.append(line)
+
+    flush_chunk()
+    return ''.join(result)
+
+
 def rule9_tilde_before_refs(text):
     """Ensure ~ before \\ref, \\cref, \\eqref, \\cite."""
     return re.sub(
@@ -648,6 +709,7 @@ RULES = [
     Rule(17, 'float_after_heading',  'Detect float placed directly after a heading',              warn_float_after_heading,        weight=4, fixable=False, order=230),
     # New rules are appended so existing numeric configuration remains stable.
     Rule(18, 'math_delimiters_display','Replace \\[...\\] with $$...$$',                         rule18_math_delimiters_display, weight=0, fixable=True,  order=85),
+    Rule(19, 'math_delimiters_equation','Replace \\[...\\] or $$...$$ with equation environment', rule19_math_delimiters_equation, weight=0, fixable=True,  order=35),
 ]
 
 
@@ -734,7 +796,7 @@ def generate_default_config():
         '[weights]',
     ]
     max_id = max(len(r.id) for r in RULES)
-    for r in sorted(RULES, key=lambda r: r.order):
+    for r in sorted(RULES, key=lambda r: r.num):
         tag = 'fixable' if r.fixable else 'unfixable'
         lines.append(f'{r.id:<{max_id}} = {r.weight:>2}  # {r.name} ({tag})')
     return '\n'.join(lines) + '\n'
@@ -759,7 +821,7 @@ def save_config(config, path):
         '[weights]',
     ]
     max_id = max(len(r.id) for r in RULES)
-    for r in sorted(RULES, key=lambda r: r.order):
+    for r in sorted(RULES, key=lambda r: r.num):
         w = _effective_weight(r, config)
         tag = 'fixable' if r.fixable else 'unfixable'
         lines.append(f'{r.id:<{max_id}} = {w:>2}  # {r.name} ({tag})')

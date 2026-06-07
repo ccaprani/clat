@@ -13,6 +13,7 @@ from clat.rules import (
     rule7_strip_decorative_comments,
     rule8_math_delimiters_inline,
     rule18_math_delimiters_display,
+    rule19_math_delimiters_equation,
     rule9_tilde_before_refs,
     rule10_number_unit_spacing,
     rule11_old_font_commands,
@@ -278,6 +279,51 @@ class TestRule18:
         assert rule18_math_delimiters_display(src) == src
 
 
+# ── Rule 19: display math delimiters to equation ────────────────────
+
+class TestRule19:
+    def test_display_bracket_single_line(self):
+        src = '\\[E = mc^2\\]'
+        assert rule19_math_delimiters_equation(src) == (
+            '\\begin{equation}\nE = mc^2\n\\end{equation}'
+        )
+
+    def test_display_bracket_multiline(self):
+        src = '\\[\n  a = b\n\\]'
+        assert rule19_math_delimiters_equation(src) == (
+            '\\begin{equation}\n  a = b\n\\end{equation}'
+        )
+
+    def test_double_dollar_single_line(self):
+        src = '$$E = mc^2$$'
+        assert rule19_math_delimiters_equation(src) == (
+            '\\begin{equation}\nE = mc^2\n\\end{equation}'
+        )
+
+    def test_double_dollar_multiline(self):
+        src = '$$\n  a = b\n$$'
+        assert rule19_math_delimiters_equation(src) == (
+            '\\begin{equation}\n  a = b\n\\end{equation}'
+        )
+
+    def test_inline_prose_left_alone(self):
+        src = 'before \\[x\\] after and before $$y$$ after'
+        assert rule19_math_delimiters_equation(src) == src
+
+    def test_skip_comments(self):
+        src = '% \\[x\\]\n\\[y\\]'
+        assert rule19_math_delimiters_equation(src) == (
+            '% \\[x\\]\n\\begin{equation}\ny\n\\end{equation}'
+        )
+
+    def test_skip_verbatim(self):
+        src = '\\begin{verbatim}\n\\[x\\]\n\\end{verbatim}\n$$y$$'
+        assert rule19_math_delimiters_equation(src) == (
+            '\\begin{verbatim}\n\\[x\\]\n\\end{verbatim}\n'
+            '\\begin{equation}\ny\n\\end{equation}'
+        )
+
+
 # ── Rule 9: tilde before refs ───────────────────────────────────────
 
 class TestRule9:
@@ -482,7 +528,7 @@ class TestWarnings:
 
 class TestRegistry:
     def test_all_rules_registered(self):
-        assert len(RULES) == 18
+        assert len(RULES) == 19
 
     def test_rule_ids_unique(self):
         ids = [r.id for r in RULES]
@@ -501,13 +547,17 @@ class TestRegistry:
         assert _get_rule('tilde_before_refs').num == 9
         assert _get_rule('float_after_heading').num == 17
         assert _get_rule('math_delimiters_display').num == 18
+        assert _get_rule('math_delimiters_equation').num == 19
 
     def test_display_math_delimiters_default_off(self):
         assert _get_rule('math_delimiters_display').weight == 0
 
+    def test_equation_math_delimiters_default_off(self):
+        assert _get_rule('math_delimiters_equation').weight == 0
+
     def test_fixable_count(self):
         fixable = [r for r in RULES if r.fixable]
-        assert len(fixable) == 14
+        assert len(fixable) == 15
 
     def test_unfixable_count(self):
         unfixable = [r for r in RULES if not r.fixable]
@@ -582,8 +632,14 @@ class TestThreshold:
         path = tmp_path / '.clat.toml'
         save_config(config, path)
         saved = path.read_text()
-        assert 'math_delimiters_inline  =  0' in saved
-        assert 'math_delimiters_display =  0' in saved
+        assert any(
+            line.startswith('math_delimiters_inline') and '=  0' in line
+            for line in saved.splitlines()
+        )
+        assert any(
+            line.startswith('math_delimiters_display') and '=  0' in line
+            for line in saved.splitlines()
+        )
 
     def test_text_still_fixed_below_threshold(self):
         """Fixable rules below threshold should still fix the text."""
@@ -610,6 +666,24 @@ class TestThreshold:
         result = texfmt(src, 'test.tex', config=config)
         assert result.text == 'display $$ y $$'
         assert 'math_delimiters_display' in [r.id for r, _ in result.clangs]
+
+    def test_equation_math_delimiters_default_off_in_texfmt(self):
+        src = '\\[ y \\]'
+        result = texfmt(src, 'test.tex')
+        assert result.text == src
+
+    def test_equation_math_delimiters_can_be_enabled(self):
+        src = '\\[ y \\]'
+        config = {
+            'threshold': 5,
+            'weights': {
+                'math_delimiters_equation': 5,
+                'equation_punctuation': 0,
+            },
+        }
+        result = texfmt(src, 'test.tex', config=config)
+        assert result.text == '\\begin{equation}\ny\n\\end{equation}'
+        assert 'math_delimiters_equation' in [r.id for r, _ in result.clangs]
 
     def test_result_type(self):
         result = texfmt('hello', 'test.tex')

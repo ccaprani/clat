@@ -45,7 +45,7 @@ threshold = 5
 labels_inline         =  8  # Merge \label onto the same line as \section (fixable)
 decorative_comments   =  6  # Strip decorative comment separators (fixable)
 heading_spacing       =  7  # Two blank lines before headings, none after (fixable)
-# ... all 18 rules listed
+# ... all 19 rules listed
 ```
 
 `clat set --init` refuses to overwrite an existing `.clat.toml`. To start over,
@@ -84,6 +84,7 @@ By rule number (see `clat list` for the numbers):
 clat set 12 9     # set rule 12 (ellipsis) to weight 9
 clat set 14 2     # demote rule 14 (long_file) to a splat
 clat set 18 5     # enable display math delimiter conversion
+clat set 19 5     # convert display math delimiters to equation environments
 ```
 
 Or edit `.clat.toml` directly under `[weights]`, keyed by the rule's **id**:

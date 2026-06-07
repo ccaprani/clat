@@ -148,6 +148,7 @@ Run `clat list` to see all rules with their numbers, weights, and current catego
 | 16 | manual_sizing            |    3    |   no    | Detect `\big`, `\Big` etc.                              |
 | 17 | float_after_heading      |    4    |   no    | Detect float placed directly after a heading            |
 | 18 | math_delimiters_display |    0    |   yes   | Replace `\[...\]` with `$$...$$`                       |
+| 19 | math_delimiters_equation |    0    |   yes   | Replace `\[...\]` or `$$...$$` with `equation`          |
 
 ## Configuration
 
@@ -169,7 +170,7 @@ threshold = 5
 labels_inline         =  8  # Merge \label onto the same line as \section (fixable)
 decorative_comments   =  6  # Strip decorative comment separators (fixable)
 heading_spacing       =  7  # Two blank lines before headings, none after (fixable)
-# ... all 18 rules listed
+# ... all 19 rules listed
 ```
 
 Edit the file directly, or use the CLI:
@@ -187,6 +188,7 @@ clat set --threshold 8
 clat set 12 9     # set rule 12 (ellipsis) to weight 9
 clat set 15 2     # demote hardcoded refs to a splat
 clat set 18 5     # enable display math delimiter conversion
+clat set 19 5     # convert display math delimiters to equation environments
 ```
 
 ### Reset to defaults

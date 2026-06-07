@@ -1,6 +1,6 @@
 # Rules
 
-`clat` ships with **18 rules** — 14 that it can auto-fix and 4 detect-only
+`clat` ships with **19 rules** — 15 that it can auto-fix and 4 detect-only
 checks. Run `clat list` to see them all with their current weights and
 categories.
 
@@ -23,7 +23,8 @@ categories.
 | 15 | `hardcoded_refs`          |    6    |   ✗   | Detect `Figure 3` instead of `\cref{...}`              |
 | 16 | `manual_sizing`           |    3    |   ✗   | Detect `\big`, `\Big` etc.                             |
 | 17 | `float_after_heading`     |    4    |   ✗   | Detect a float placed directly after a heading          |
-| 18 | `math_delimiters_display` |    0    |   ✓   | Replace `\[...\]` with `$$...$$`                      |
+| 18 | `math_delimiters_display`  |    0    |   ✓   | Replace `\[...\]` with `$$...$$`                    |
+| 19 | `math_delimiters_equation` |    0    |   ✓   | Replace `\[...\]` or `$$...$$` with `equation`      |
 
 !!! tip "Order matters"
     Fixable rules are applied in a fixed sequence (decorative comments are
@@ -251,6 +252,29 @@ $$ y = 2 $$
 
 If you prefer `$$...$$`, set this rule's weight above `0` to enable it while
 keeping Rule 8 for inline math delimiters independent.
+
+### 19 · `math_delimiters_equation`
+
+Replace standalone display math delimiter blocks (`\[...\]` or `$$...$$`) with
+an `equation` environment. It is disabled by default because display-math
+delimiter style is especially user- and journal-dependent.
+
+```latex
+% before
+\[
+    y = 2
+\]
+
+% after
+\begin{equation}
+    y = 2
+\end{equation}
+```
+
+Only standalone display-math blocks are converted; inline prose such as
+`before \[x\] after` is left alone. Comments and verbatim/listing blocks are
+skipped. Because the result is an `equation` environment, the existing equation
+spacing and punctuation rules may then apply as usual.
 
 ---
 
