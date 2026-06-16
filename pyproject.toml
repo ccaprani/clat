@@ -35,6 +35,7 @@ Issues = "https://github.com/ccaprani/clat/issues"
 
 [project.optional-dependencies]
 docs = [
+    "mkdocs>=1.5",
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.25",
 ]

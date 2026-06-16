@@ -95,10 +95,17 @@ pip install clat-tidy
 The command is `clat`. (The distribution is published as `clat-tidy` because
 `clat` was already taken on PyPI; everything you type is still `clat`.)
 
-For local development:
+For local development with conda:
 
 ```
-pip install -e .
+conda env create -f environment.yml
+conda activate clat
+```
+
+Or install into an existing environment:
+
+```
+pip install -e '.[docs]'
 ```
 
 Requires Python >= 3.8. On Python < 3.11, `tomli` is installed automatically.

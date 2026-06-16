@@ -42,23 +42,25 @@ pipx install clat-tidy
 
 ## Development install
 
-Clone the repository and install in editable mode:
+Clone the repository and create the conda development environment:
 
 ```bash
 git clone https://github.com/ccaprani/clat.git
 cd clat
-pip install -e .
+conda env create -f environment.yml
+conda activate clat
 ```
 
-To build the documentation as well, install the `docs` extra:
-
-```bash
-pip install -e '.[docs]'
-mkdocs serve   # live preview at http://127.0.0.1:8000
-```
-
-Run the test suite with:
+The conda environment installs clat in editable mode with the `docs` extra and
+`pytest`, so it can run both tests and documentation builds:
 
 ```bash
 python -m pytest tests/ -v
+mkdocs serve   # live preview at http://127.0.0.1:8000
+```
+
+To install into an existing environment instead, use pip:
+
+```bash
+pip install -e '.[docs]'
 ```
