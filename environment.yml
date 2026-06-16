@@ -1,0 +1,9 @@
+name: clat
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - -e .[docs]
+      - pytest

@@ -19,6 +19,7 @@ from clat.rules import (
     rule13_old_font_commands,
     rule14_ellipsis,
     rule15_ordinal_suffixes,
+    rule16_table_line_endings,
     warn_hardcoded_refs,
     warn_manual_sizing,
     warn_long_file,
@@ -457,6 +458,25 @@ class TestRule15:
         assert rule15_ordinal_suffixes(src) == src
 
 
+# ── Rule 16: table line endings ─────────────────────────────────────
+
+class TestRule16:
+    def test_row_ending_moves_onto_table_row(self):
+        src = '\\begin{tabular}{ll}\nA & B\n\\\\\n\\end{tabular}'
+        expected = '\\begin{tabular}{ll}\nA & B \\\\\n\\end{tabular}'
+        assert rule16_table_line_endings(src) == expected
+
+    def test_horizontal_rule_kept_on_own_line(self):
+        src = '\\begin{tabular}{ll}\nA & B \\\\ \\hline\nC & D\n\\end{tabular}'
+        expected = '\\begin{tabular}{ll}\nA & B \\\\\n\\hline\nC & D\n\\end{tabular}'
+        assert rule16_table_line_endings(src) == expected
+
+    def test_horizontal_rule_drops_trailing_row_ending(self):
+        src = '\\begin{tabular}{ll}\n\\hline \\\\\nA & B\n\\end{tabular}'
+        expected = '\\begin{tabular}{ll}\n\\hline\nA & B\n\\end{tabular}'
+        assert rule16_table_line_endings(src) == expected
+
+
 # ── Warnings (individual functions) ─────────────────────────────────
 
 class TestWarnings:
@@ -529,7 +549,7 @@ class TestWarnings:
 
 class TestRegistry:
     def test_all_rules_registered(self):
-        assert len(RULES) == 19
+        assert len(RULES) == 20
 
     def test_rule_ids_unique(self):
         ids = [r.id for r in RULES]
@@ -548,7 +568,7 @@ class TestRegistry:
         assert _get_rule('math_delimiters_display').num == 9
         assert _get_rule('math_delimiters_equation').num == 10
         assert _get_rule('tilde_before_refs').num == 11
-        assert _get_rule('float_after_heading').num == 19
+        assert _get_rule('float_after_heading').num == 20
 
     def test_display_math_delimiters_default_off(self):
         assert _get_rule('math_delimiters_display').weight == 0
@@ -558,7 +578,7 @@ class TestRegistry:
 
     def test_fixable_count(self):
         fixable = [r for r in RULES if r.fixable]
-        assert len(fixable) == 15
+        assert len(fixable) == 16
 
     def test_unfixable_count(self):
         unfixable = [r for r in RULES if not r.fixable]
