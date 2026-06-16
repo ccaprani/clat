@@ -611,6 +611,72 @@ def rule15_ordinal_suffixes(text):
     return '\n'.join(result)
 
 
+def rule16_table_line_endings(text):
+    r"""Move \\\\ and \hline/\toprule/etc. to proper positions in tables.
+
+    Ensures:
+      1. Line endings (\\\\) are on the same line as the table row content.
+      2. Horizontal rules (\hline, \toprule, \midrule, \bottomrule) are on their
+         own lines, not on the same line as row content.
+    """
+    lines = text.split('\n')
+    result = []
+    in_tabular = False
+
+    table_envs = re.compile(r'^\s*\\begin\{(tabular|table|array)\b')
+    end_table_envs = re.compile(r'^\s*\\end\{(tabular|table|array)\b')
+    hline_cmd_re = re.compile(r'\\(?:hline|toprule|midrule|bottomrule)\b')
+    hline_only_re = re.compile(r'^\s*(\\(?:hline|toprule|midrule|bottomrule))\s*(?:\\\\)?\s*$')
+    backslash_only_re = re.compile(r'^\s*\\\\\s*$')
+
+    def split_hline_segments(line):
+        """Split horizontal rules away from row content on the same line."""
+        if not hline_cmd_re.search(line):
+            return [line]
+        indent = re.match(r'^\s*', line).group(0)
+        segments = []
+        cursor = 0
+        for match in hline_cmd_re.finditer(line):
+            before = line[cursor:match.start()].strip()
+            if before:
+                segments.append(indent + before)
+            segments.append(indent + match.group(0))
+            cursor = match.end()
+        after = line[cursor:].strip()
+        if after:
+            segments.append(indent + after)
+        return segments
+
+    for line in lines:
+        if table_envs.match(line):
+            in_tabular = True
+        if end_table_envs.match(line):
+            in_tabular = False
+
+        if not in_tabular:
+            result.append(line)
+            continue
+
+        for segment in split_hline_segments(line):
+            match = hline_only_re.match(segment)
+            if match:
+                indent = re.match(r'^\s*', segment).group(0)
+                result.append(indent + match.group(1))
+                continue
+
+            if backslash_only_re.match(segment) and result:
+                prev = result[-1]
+                if hline_only_re.match(prev):
+                    continue
+                if not prev.rstrip().endswith('\\\\'):
+                    result[-1] = prev.rstrip() + ' \\\\'
+                    continue
+
+            result.append(segment)
+
+    return '\n'.join(result)
+
+
 # ── Warnings ─────────────────────────────────────────────────────────
 
 def warn_hardcoded_refs(text, filename):
@@ -705,11 +771,12 @@ RULES = [
     Rule(13, 'old_font_commands',    'Replace {\\bf text} with \\textbf{text} etc.',              rule13_old_font_commands,        weight=5, fixable=True,  order=110),
     Rule(14, 'ellipsis',             'Replace ... with \\dots',                                   rule14_ellipsis,                 weight=4, fixable=True,  order=120),
     Rule(15, 'ordinal_suffixes',     'Convert superscript ordinals to plain text (1st, 2nd)',     rule15_ordinal_suffixes,         weight=8, fixable=True,  order=130),
+    Rule(16, 'table_line_endings',    'Table \\\\ on row line, \\hline/\\toprule on own line',      rule16_table_line_endings,       weight=7, fixable=True,  order=140),
     # Unfixable rules (warnings / clunks)
-    Rule(16, 'long_file',            'Warn if file exceeds 2000 lines',                           warn_long_file,                  weight=3, fixable=False, order=200),
-    Rule(17, 'hardcoded_refs',       'Detect "Figure 3" instead of \\cref{...}',                  warn_hardcoded_refs,             weight=6, fixable=False, order=210),
-    Rule(18, 'manual_sizing',        'Detect \\big, \\Big etc. (prefer \\left/\\right)',          warn_manual_sizing,              weight=3, fixable=False, order=220),
-    Rule(19, 'float_after_heading',  'Detect float placed directly after a heading',              warn_float_after_heading,        weight=4, fixable=False, order=230),
+    Rule(17, 'long_file',            'Warn if file exceeds 2000 lines',                           warn_long_file,                  weight=3, fixable=False, order=200),
+    Rule(18, 'hardcoded_refs',       'Detect "Figure 3" instead of \\cref{...}',                  warn_hardcoded_refs,             weight=6, fixable=False, order=210),
+    Rule(19, 'manual_sizing',        'Detect \\big, \\Big etc. (prefer \\left/\\right)',          warn_manual_sizing,              weight=3, fixable=False, order=220),
+    Rule(20, 'float_after_heading',  'Detect float placed directly after a heading',              warn_float_after_heading,        weight=4, fixable=False, order=230),
 ]
 
 

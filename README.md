@@ -67,6 +67,7 @@ For example, clat can:
 - Ensure `~` before `\ref`, `\cite`, and similar commands
 - Replace `...` with `\dots`
 - Normalise number-unit spacing (`100\,kN`)
+- Keep table row endings (`\\`) with row content and horizontal rules on their own lines
 - Detect hardcoded references (`Figure 3` instead of `\cref{...}`)
 - Add trailing punctuation to display equations
 - Convert superscript ordinals (`1\textsuperscript{st}` → `1st`)
@@ -148,10 +149,11 @@ Run `clat list` to see all rules with their numbers, weights, and current catego
 | 13 | old_font_commands        |    5    |   yes   | Replace `{\bf text}` with `\textbf{text}` etc.          |
 | 14 | ellipsis                 |    4    |   yes   | Replace `...` with `\dots`                              |
 | 15 | ordinal_suffixes         |    8    |   yes   | Convert superscript ordinals to plain text (`1st`, `2nd`)|
-| 16 | long_file                |    3    |   no    | Warn if file exceeds 2000 lines                          |
-| 17 | hardcoded_refs           |    6    |   no    | Detect `Figure 3` instead of `\cref{...}`                |
-| 18 | manual_sizing            |    3    |   no    | Detect `\big`, `\Big` etc.                              |
-| 19 | float_after_heading      |    4    |   no    | Detect float placed directly after a heading             |
+| 16 | table_line_endings       |    7    |   yes   | Keep table `\\` on row lines and rules on own lines     |
+| 17 | long_file                |    3    |   no    | Warn if file exceeds 2000 lines                          |
+| 18 | hardcoded_refs           |    6    |   no    | Detect `Figure 3` instead of `\cref{...}`                |
+| 19 | manual_sizing            |    3    |   no    | Detect `\big`, `\Big` etc.                              |
+| 20 | float_after_heading      |    4    |   no    | Detect float placed directly after a heading             |
 
 ## Configuration
 
@@ -173,7 +175,7 @@ threshold = 5
 labels_inline         =  8  # Merge \label onto the same line as \section (fixable)
 decorative_comments   =  6  # Strip decorative comment separators (fixable)
 heading_spacing       =  7  # Two blank lines before headings, none after (fixable)
-# ... all 19 rules listed
+# ... all 20 rules listed
 ```
 
 Edit the file directly, or use the CLI:

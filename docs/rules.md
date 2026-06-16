@@ -1,6 +1,6 @@
 # Rules
 
-`clat` ships with **19 rules** — 15 that it can auto-fix and 4 detect-only
+`clat` ships with **20 rules** — 16 that it can auto-fix and 4 detect-only
 checks. Run `clat list` to see them all with their current weights and
 categories.
 
@@ -21,10 +21,11 @@ categories.
 | 13 | `old_font_commands`        |    5    |   ✓   | Replace `{\bf text}` with `\textbf{text}` etc.       |
 | 14 | `ellipsis`                 |    4    |   ✓   | Replace `...` with `\dots`                            |
 | 15 | `ordinal_suffixes`         |    8    |   ✓   | Convert superscript ordinals to plain text (`1st`, `2nd`)|
-| 16 | `long_file`                |    3    |   ✗   | Warn if a file exceeds 2000 lines                      |
-| 17 | `hardcoded_refs`           |    6    |   ✗   | Detect `Figure 3` instead of `\cref{...}`             |
-| 18 | `manual_sizing`            |    3    |   ✗   | Detect `\big`, `\Big` etc.                           |
-| 19 | `float_after_heading`      |    4    |   ✗   | Detect a float placed directly after a heading         |
+| 16 | `table_line_endings`       |    7    |   ✓   | Keep table `\\` on row lines and rules on own lines   |
+| 17 | `long_file`                |    3    |   ✗   | Warn if a file exceeds 2000 lines                      |
+| 18 | `hardcoded_refs`           |    6    |   ✗   | Detect `Figure 3` instead of `\cref{...}`             |
+| 19 | `manual_sizing`            |    3    |   ✗   | Detect `\big`, `\Big` etc.                           |
+| 20 | `float_after_heading`      |    4    |   ✗   | Detect a float placed directly after a heading         |
 
 !!! tip "Order still matters, but sweeps help"
     Fixable rules are applied in a fixed sequence (decorative comments are
@@ -277,6 +278,26 @@ the $1^{st}$ and 2\textsuperscript{nd} cases
 the 1st and 2nd cases
 ```
 
+### 16 · `table_line_endings`
+
+Keep table row endings (`\\`) on the same line as the row content, and keep
+horizontal rules (`\hline`, `\toprule`, `\midrule`, `\bottomrule`) on their
+own lines.
+
+```latex
+% before
+\hline
+$I_b$ & 0.509
+\\
+$A$ & 1 \\ \hline
+
+% after
+\hline
+$I_b$ & 0.509 \\
+$A$ & 1 \\
+\hline
+```
+
 ---
 
 ## Detect-only rules
@@ -285,23 +306,23 @@ These rules cannot be auto-fixed. Above the threshold they are reported as
 **clunks** (needs your attention); below it, as **splats**. At weight `0`, they
 are skipped entirely.
 
-### 16 · `long_file`
+### 17 · `long_file`
 
 Warn when a file exceeds **2000 lines** — a nudge to split it up with
 `\input`.
 
-### 17 · `hardcoded_refs`
+### 18 · `hardcoded_refs`
 
 Flag hardcoded cross-references such as `Figure 3`, `Table 2`, or `Eq. 5`,
 which should usually be `\cref{...}` so numbering stays automatic. References
 already inside `\ref{`/`\cref{`/`\Cref{` are ignored.
 
-### 18 · `manual_sizing`
+### 19 · `manual_sizing`
 
 Flag manual delimiter sizing — `\big`, `\Big`, `\bigg`, `\Bigg` — where
 `\left`/`\right` is usually preferable.
 
-### 19 · `float_after_heading`
+### 20 · `float_after_heading`
 
 Flag a `figure`, `table`, or `algorithm` placed directly after a heading
 (allowing only blank lines, `%` comments, and a `\label` in between), and
