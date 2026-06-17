@@ -179,12 +179,25 @@ This generates `.clat.toml` with all rules and their default weights:
 ```toml
 threshold = 5
 
+# Contents of these environments are left untouched by every rule.
+protected_environments = ["tikzpicture", "pgfpicture", "axis", "tikzcd"]
+# Rule ids listed here still run inside protected environments.
+unprotected_rules = []
+
 [weights]
 labels_inline         =  8  # Merge \label onto the same line as \section (fixable)
 decorative_comments   =  6  # Strip decorative comment separators (fixable)
 heading_spacing       =  7  # Two blank lines before headings, none after (fixable)
 # ... all 21 rules listed
 ```
+
+### Protected environments
+
+clat masks picture/plot environments — TikZ, pgfplots, tikz-cd by default — out
+before any rule runs and restores them verbatim, so their contents are never
+reformatted. Adjust `protected_environments` to add or remove environments (set
+it to `[]` to disable), or list a rule id in `unprotected_rules` to let just
+that rule run inside them. See the [configuration docs](https://ccaprani.github.io/clat/configuration/#protected-environments).
 
 Edit the file directly, or use the CLI:
 

@@ -137,6 +137,11 @@ def _pop_env(env_stack, env):
 DEFAULT_THRESHOLD = 5
 DEFAULT_MAX_ITER = 5
 
+# Environments whose contents are masked out before any rule runs, so prose
+# rules don't mangle picture/plot syntax (coordinates, node text, lengths …).
+# Configurable per project via ``protected_environments`` in .clat.toml.
+DEFAULT_PROTECTED_ENVIRONMENTS = ('tikzpicture', 'pgfpicture', 'axis', 'tikzcd')
+
 
 @dataclass
 class Rule:
@@ -849,10 +854,21 @@ def _get_rule_by_num(num):
 
 # ── Config ──────────────────────────────────────────────────────────
 
+def _default_config():
+    """A config dict with all defaults and no user overrides."""
+    return {
+        'threshold': DEFAULT_THRESHOLD,
+        'weights': {},
+        'protected_environments': list(DEFAULT_PROTECTED_ENVIRONMENTS),
+        'unprotected_rules': [],
+    }
+
+
 def load_config(path=None):
     """Load config from .clat.toml or fallback locations.
 
-    Returns a dict with 'threshold' (int) and 'weights' (dict[str, int]).
+    Returns a dict with 'threshold' (int), 'weights' (dict[str, int]),
+    'protected_environments' (list[str]), and 'unprotected_rules' (list[str]).
     """
     try:
         import tomllib
@@ -875,9 +891,13 @@ def load_config(path=None):
             return {
                 'threshold': data.get('threshold', DEFAULT_THRESHOLD),
                 'weights': data.get('weights', {}),
+                'protected_environments': data.get(
+                    'protected_environments',
+                    list(DEFAULT_PROTECTED_ENVIRONMENTS)),
+                'unprotected_rules': data.get('unprotected_rules', []),
             }
 
-    return {'threshold': DEFAULT_THRESHOLD, 'weights': {}}
+    return _default_config()
 
 
 def _effective_weight(rule, config):
@@ -885,9 +905,14 @@ def _effective_weight(rule, config):
     return config['weights'].get(rule.id, rule.weight)
 
 
-def generate_default_config():
-    """Return a .clat.toml string with all rules and their default weights."""
-    lines = [
+def _toml_str_list(items):
+    """Render a list of strings as a TOML inline array."""
+    return '[' + ', '.join(f'"{item}"' for item in items) + ']'
+
+
+def _config_lines(threshold, envs, unprotected):
+    """Header, threshold, and environment-protection lines for a config file."""
+    return [
         '# clat configuration',
         '# Adjust threshold and per-rule weights to taste.',
         '#',
@@ -897,42 +922,142 @@ def generate_default_config():
         '#   splat:  0 < weight < threshold               (advisory)',
         '#   off:    weight <= 0                          (disabled)',
         '',
-        f'threshold = {DEFAULT_THRESHOLD}',
+        f'threshold = {threshold}',
+        '',
+        '# Contents of these environments are left untouched by every rule.',
+        f'protected_environments = {_toml_str_list(envs)}',
+        '# Rule ids listed here still run inside protected environments.',
+        f'unprotected_rules = {_toml_str_list(unprotected)}',
         '',
         '[weights]',
     ]
+
+
+def _weight_lines(weight_for):
+    """Aligned ``rule_id = weight  # name (tag)`` lines for every rule."""
     max_id = max(len(r.id) for r in RULES)
+    lines = []
     for r in sorted(RULES, key=lambda r: r.num):
         tag = 'fixable' if r.fixable else 'unfixable'
-        lines.append(f'{r.id:<{max_id}} = {r.weight:>2}  # {r.name} ({tag})')
+        lines.append(f'{r.id:<{max_id}} = {weight_for(r):>2}  # {r.name} ({tag})')
+    return lines
+
+
+def generate_default_config():
+    """Return a .clat.toml string with all rules and their default weights."""
+    lines = _config_lines(
+        DEFAULT_THRESHOLD,
+        DEFAULT_PROTECTED_ENVIRONMENTS,
+        (),
+    )
+    lines += _weight_lines(lambda r: r.weight)
     return '\n'.join(lines) + '\n'
 
 
 def save_config(config, path):
-    """Write config dict back to a .clat.toml file."""
+    """Write config dict back to a .clat.toml file, preserving all settings."""
     from pathlib import Path
-    # Rebuild from current state, respecting any weight overrides
-    lines = [
-        '# clat configuration',
-        '# Adjust threshold and per-rule weights to taste.',
-        '#',
-        '# Categories are determined at runtime:',
-        '#   clang:  weight >= threshold AND fixable     (auto-fixed)',
-        '#   clunk:  weight >= threshold AND NOT fixable  (needs your attention)',
-        '#   splat:  0 < weight < threshold               (advisory)',
-        '#   off:    weight <= 0                          (disabled)',
-        '',
-        f'threshold = {config["threshold"]}',
-        '',
-        '[weights]',
-    ]
-    max_id = max(len(r.id) for r in RULES)
-    for r in sorted(RULES, key=lambda r: r.num):
-        w = _effective_weight(r, config)
-        tag = 'fixable' if r.fixable else 'unfixable'
-        lines.append(f'{r.id:<{max_id}} = {w:>2}  # {r.name} ({tag})')
+    # Rebuild from current state, respecting weight and protection overrides.
+    lines = _config_lines(
+        config['threshold'],
+        config.get('protected_environments', DEFAULT_PROTECTED_ENVIRONMENTS),
+        config.get('unprotected_rules', ()),
+    )
+    lines += _weight_lines(lambda r: _effective_weight(r, config))
     Path(path).write_text('\n'.join(lines) + '\n')
     return path
+
+
+# ── Environment protection ───────────────────────────────────────────
+# Some environments — TikZ pictures, pgfplots axes, tikz-cd diagrams — contain
+# syntax that the prose-oriented rules would happily mangle: coordinates with
+# commas, periods inside node text, "100 pt" lengths, table-like rows, and so
+# on.  Each such block is masked out before a rule runs and restored verbatim
+# afterwards, so the rule never sees its contents.  Masking is applied per
+# rule, so an individual rule can opt back in via ``unprotected_rules``.
+
+_PROTECT_SENTINEL = '\x01CLAT-PROTECTED-{}\x01'
+_BEGIN_ANY_ENV_RE = re.compile(r'\\begin\{([^}]+)\}')
+
+
+def _protected_blocks(lines, envs):
+    """Yield ``(start, end)`` inclusive line-index ranges of protected blocks.
+
+    Blocks are matched by environment name with depth counting, so a protected
+    environment nested inside one of the same name is handled, and any block
+    nested inside an already-protected block is absorbed into the outer one.
+    Comment lines are not treated as block starts.
+    """
+    n = len(lines)
+    i = 0
+    while i < n:
+        match = _BEGIN_ANY_ENV_RE.search(lines[i])
+        if (match and match.group(1) in envs
+                and not lines[i].lstrip().startswith('%')):
+            env = match.group(1)
+            beg_re = re.compile(r'\\begin\{' + re.escape(env) + r'\}')
+            end_re = re.compile(r'\\end\{' + re.escape(env) + r'\}')
+            depth = 0
+            j = i
+            while j < n:
+                depth += len(beg_re.findall(lines[j]))
+                depth -= len(end_re.findall(lines[j]))
+                if depth <= 0:
+                    break
+                j += 1
+            yield (i, min(j, n - 1))
+            i = j + 1
+        else:
+            i += 1
+
+
+def _mask_environments(text, envs):
+    """Replace each protected environment block with a one-line sentinel.
+
+    Returns ``(masked_text, mapping)`` where ``mapping`` is a list of
+    ``(sentinel, original_block)`` pairs for restoration.
+    """
+    if not envs:
+        return text, []
+    lines = text.split('\n')
+    blocks = list(_protected_blocks(lines, envs))
+    if not blocks:
+        return text, []
+    out = []
+    mapping = []
+    prev_end = -1
+    for start, end in blocks:
+        out.extend(lines[prev_end + 1:start])
+        sentinel = _PROTECT_SENTINEL.format(len(mapping))
+        # Keep the first line's leading indent on the sentinel line, not in the
+        # stored block, so an indentation rule re-indenting the sentinel can't
+        # accumulate tabs onto the block each sweep (it would never converge).
+        first = lines[start]
+        indent = first[:len(first) - len(first.lstrip())]
+        body = '\n'.join([first[len(indent):]] + lines[start + 1:end + 1])
+        mapping.append((sentinel, body))
+        out.append(indent + sentinel)
+        prev_end = end
+    out.extend(lines[prev_end + 1:])
+    return '\n'.join(out), mapping
+
+
+def _unmask_environments(text, mapping):
+    """Restore the blocks masked by :func:`_mask_environments`."""
+    for sentinel, original in mapping:
+        text = text.replace(sentinel, original)
+    return text
+
+
+def _protected_line_set(text, envs):
+    """Return the set of 1-based line numbers inside protected blocks."""
+    if not envs:
+        return set()
+    lines = text.split('\n')
+    protected = set()
+    for start, end in _protected_blocks(lines, envs):
+        protected.update(range(start + 1, end + 2))  # 1-based, inclusive
+    return protected
 
 
 # ── Main entry point ─────────────────────────────────────────────────
@@ -991,7 +1116,7 @@ def texfmt(text, filename='<input>', config=None, max_iter=DEFAULT_MAX_ITER):
         raise ValueError('max_iter must be >= 1')
 
     if config is None:
-        config = {'threshold': DEFAULT_THRESHOLD, 'weights': {}}
+        config = _default_config()
 
     threshold = config['threshold']
     result = ClatResult(text=text)
@@ -1003,6 +1128,15 @@ def texfmt(text, filename='<input>', config=None, max_iter=DEFAULT_MAX_ITER):
     clang_counts = {}
     fixable_splats = set()
 
+    # Environments masked out before a rule runs (e.g. tikzpicture), unless the
+    # rule is listed in ``unprotected_rules``.
+    protected_envs = set(config.get('protected_environments',
+                                    DEFAULT_PROTECTED_ENVIRONMENTS))
+    unprotected = set(config.get('unprotected_rules', ()))
+
+    def _respects_protection(rule):
+        return bool(protected_envs) and rule.id not in unprotected
+
     for sweep in range(max_iter):
         sweep_start = result.text
         result.iterations = sweep + 1
@@ -1013,7 +1147,11 @@ def texfmt(text, filename='<input>', config=None, max_iter=DEFAULT_MAX_ITER):
                 continue
 
             original = result.text
-            result.text = rule.fn(result.text)
+            if _respects_protection(rule):
+                masked, mapping = _mask_environments(original, protected_envs)
+                result.text = _unmask_environments(rule.fn(masked), mapping)
+            else:
+                result.text = rule.fn(original)
             if result.text == original:
                 continue
 
@@ -1037,11 +1175,14 @@ def texfmt(text, filename='<input>', config=None, max_iter=DEFAULT_MAX_ITER):
         if rule.id in fixable_splats:
             result.splats.append((rule, filename, 0, f'{rule.name} (auto-fixed)'))
 
+    protected_lines = _protected_line_set(result.text, protected_envs)
     for rule in detect_rules:
         w = _effective_weight(rule, config)
         if w <= 0:
             continue
         issues = rule.fn(result.text, filename)
+        if _respects_protection(rule):
+            issues = [iss for iss in issues if iss[1] not in protected_lines]
         for fname, line, msg in issues:
             if w >= threshold:
                 result.clunks.append((rule, fname, line, msg))

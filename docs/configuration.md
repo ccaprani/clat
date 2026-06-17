@@ -1,7 +1,9 @@
 # Configuration
 
-`clat` reads its configuration from a TOML file. Two settings control
-everything: the **threshold** and each rule's **weight**.
+`clat` reads its configuration from a TOML file. Two settings drive
+formatting: the **threshold** and each rule's **weight**. A third group of
+settings — **protected environments** — keeps clat's hands off picture and
+plot code such as TikZ.
 
 !!! note "Config tunes existing rules — it doesn't add new ones"
     Editing `.clat.toml` adjusts the weight of clat's [built-in
@@ -40,6 +42,11 @@ its default weight:
 #   off:    weight <= 0                          (disabled)
 
 threshold = 5
+
+# Contents of these environments are left untouched by every rule.
+protected_environments = ["tikzpicture", "pgfpicture", "axis", "tikzcd"]
+# Rule ids listed here still run inside protected environments.
+unprotected_rules = []
 
 [weights]
 labels_inline         =  8  # Merge \label onto the same line as \section (fixable)
@@ -105,6 +112,41 @@ long_file = 2
 Weights run **0–10**. A weight of `0` disables a rule. A positive weight at or
 above the threshold promotes a rule to a clang (fixable) or clunk (detect-only);
 below the threshold it becomes a splat.
+
+## Protected environments
+
+Picture and plot environments — TikZ, pgfplots, tikz-cd — are full of syntax
+that the prose-oriented rules would happily wreck: coordinates with commas,
+periods inside node text, `100 pt` lengths, and table-like rows. clat **masks
+these environments out before any rule runs and restores them verbatim
+afterwards**, so nothing inside is touched (warnings inside them are suppressed
+too).
+
+By default these environments are protected:
+
+```toml
+protected_environments = ["tikzpicture", "pgfpicture", "axis", "tikzcd"]
+```
+
+Add your own (anything matched by `\begin{name}` … `\end{name}`), or set it to
+`[]` to turn protection off entirely:
+
+```toml
+protected_environments = ["tikzpicture", "circuitikz", "forest"]
+```
+
+### Letting a rule back in
+
+If you *do* want a particular rule to run inside protected environments, list it
+in `unprotected_rules`. For example, to keep fixing abbreviation spacing even
+inside TikZ node text while leaving every other rule out:
+
+```toml
+unprotected_rules = ["abbreviation_spacing"]
+```
+
+`clat list` shows the active protected environments and any unprotected rules at
+the top of its output.
 
 ## Reset to defaults
 

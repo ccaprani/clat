@@ -35,6 +35,13 @@ categories.
     full sweep makes no text changes, up to `--max-iter` iterations, so
     interacting rules can settle to a fixed point.
 
+!!! note "Picture environments are protected"
+    Every rule below skips the contents of **protected environments** — TikZ,
+    pgfplots, and tikz-cd by default — so coordinates, node text, and lengths
+    are never mangled. You can change which environments are protected, or let
+    a specific rule back in, via
+    [`protected_environments` / `unprotected_rules`](configuration.md#protected-environments).
+
 ---
 
 ## Fixable rules
