@@ -31,8 +31,13 @@ from clat.rules import (
     Rule,
     DEFAULT_THRESHOLD,
     DEFAULT_MAX_ITER,
+    DEFAULT_PROTECTED_ENVIRONMENTS,
     _effective_weight,
     _get_rule,
+    _mask_environments,
+    _unmask_environments,
+    _protected_line_set,
+    generate_default_config,
 )
 
 TESTS_DIR = os.path.dirname(__file__)
@@ -839,3 +844,104 @@ class TestThreshold:
     def test_result_type(self):
         result = texfmt('hello', 'test.tex')
         assert isinstance(result, ClatResult)
+
+
+# ── Environment protection (TikZ, pgfplots, …) ──────────────────────
+
+TIKZ_BLOCK = (
+    '\\begin{tikzpicture}\n'
+    '\\node {Text, e.g. here. Another sentence.};\n'
+    '\\draw (0,0) -- (1,1);\n'
+    '\\end{tikzpicture}'
+)
+
+
+class TestEnvironmentProtection:
+    def test_mask_unmask_roundtrip(self):
+        text = 'Before.\n' + TIKZ_BLOCK + '\nAfter.'
+        masked, mapping = _mask_environments(text, {'tikzpicture'})
+        assert 'tikzpicture' not in masked  # block hidden behind a sentinel
+        assert len(mapping) == 1
+        assert _unmask_environments(masked, mapping) == text
+
+    def test_mask_collapses_block_to_one_line(self):
+        masked, _ = _mask_environments(TIKZ_BLOCK, {'tikzpicture'})
+        assert masked.count('\n') == 0  # four lines collapsed to a sentinel
+
+    def test_no_protected_envs_is_noop(self):
+        masked, mapping = _mask_environments(TIKZ_BLOCK, set())
+        assert masked == TIKZ_BLOCK
+        assert mapping == []
+
+    def test_tikz_contents_untouched_by_texfmt(self):
+        result = texfmt(TIKZ_BLOCK, 'x.tex')
+        assert result.text == TIKZ_BLOCK
+
+    def test_prose_outside_tikz_still_fixed(self):
+        src = 'Use it, e.g. now.\n' + TIKZ_BLOCK
+        result = texfmt(src, 'x.tex')
+        assert 'e.g.\\ now' in result.text          # outside: fixed
+        assert 'e.g. here. Another' in result.text  # inside: untouched
+
+    def test_sentence_not_split_inside_tikz(self):
+        result = texfmt(TIKZ_BLOCK, 'x.tex')
+        assert '{Text, e.g. here. Another sentence.}' in result.text
+
+    def test_converges_when_tikz_inside_figure(self):
+        src = ('\\begin{figure}\n\\centering\n' + TIKZ_BLOCK
+               + '\n\\caption{C}\n\\end{figure}')
+        result = texfmt(src, 'x.tex')
+        assert result.converged
+        assert texfmt(result.text, 'x.tex').text == result.text  # idempotent
+        assert '\\node {Text, e.g. here. Another sentence.};' in result.text
+
+    def test_default_envs_cover_pgfplots_family(self):
+        assert set(DEFAULT_PROTECTED_ENVIRONMENTS) == {
+            'tikzpicture', 'pgfpicture', 'axis', 'tikzcd'}
+        for env in ('axis', 'pgfpicture', 'tikzcd'):
+            block = f'\\begin{{{env}}}\nx, e.g. y. Z here.\n\\end{{{env}}}'
+            assert texfmt(block, 'x.tex').text == block
+
+    def test_unprotected_rule_runs_inside_env(self):
+        config = {
+            'threshold': 5,
+            'weights': {},
+            'protected_environments': ['tikzpicture'],
+            'unprotected_rules': ['abbreviation_spacing'],
+        }
+        result = texfmt(TIKZ_BLOCK, 'x.tex', config=config)
+        assert 'e.g.\\ here' in result.text          # opted-in rule applied
+        # other rules still protected: node text is not split
+        assert '{Text, e.g.\\ here. Another sentence.}' in result.text
+
+    def test_empty_protected_list_formats_everything(self):
+        config = {
+            'threshold': 5,
+            'weights': {},
+            'protected_environments': [],
+            'unprotected_rules': [],
+        }
+        result = texfmt(TIKZ_BLOCK, 'x.tex', config=config)
+        assert 'e.g.\\ here' in result.text  # no protection at all
+
+    def test_warning_inside_tikz_is_suppressed(self):
+        src = ('See Figure 3 outside.\n'
+               '\\begin{tikzpicture}\n\\node {Figure 9 inside};\n'
+               '\\end{tikzpicture}')
+        config = {'threshold': 5, 'weights': {'hardcoded_refs': 8},
+                  'protected_environments': ['tikzpicture'],
+                  'unprotected_rules': []}
+        result = texfmt(src, 'x.tex', config=config)
+        msgs = [m for _, _, _, m in result.clunks]
+        assert any('Figure 3' in m for m in msgs)      # outside flagged
+        assert not any('Figure 9' in m for m in msgs)  # inside suppressed
+
+    def test_protected_line_set(self):
+        src = 'A.\n\\begin{tikzpicture}\nx\n\\end{tikzpicture}\nB.'
+        assert _protected_line_set(src, {'tikzpicture'}) == {2, 3, 4}
+
+    def test_generate_default_config_includes_protection(self):
+        text = generate_default_config()
+        assert ('protected_environments = '
+                '["tikzpicture", "pgfpicture", "axis", "tikzcd"]') in text
+        assert 'unprotected_rules = []' in text

@@ -1,5 +1,6 @@
 """Tests for clat CLI helpers."""
 
+import re
 from pathlib import Path
 
 from clat.cli import discover_tex_files, _cmd_set
@@ -65,3 +66,33 @@ def test_discover_tex_files_handles_bare_input_and_import(tmp_path, monkeypatch)
         Path('sections/intro.tex'),
         Path('sections/method.tex'),
     ]
+
+
+def test_cmd_set_init_writes_protection_defaults(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    _cmd_set(['--init'])
+
+    text = (tmp_path / '.clat.toml').read_text()
+    assert ('protected_environments = '
+            '["tikzpicture", "pgfpicture", "axis", "tikzcd"]') in text
+    assert 'unprotected_rules = []' in text
+
+
+def test_cmd_set_preserves_protection_settings(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    # A config with customised protection settings ...
+    (tmp_path / '.clat.toml').write_text(
+        'threshold = 5\n'
+        'protected_environments = ["tikzpicture", "myenv"]\n'
+        'unprotected_rules = ["ellipsis"]\n'
+        '\n[weights]\n'
+    )
+
+    # ... must survive an unrelated `clat set <rule> <weight>`.
+    _cmd_set(['ellipsis', '9'])
+
+    text = (tmp_path / '.clat.toml').read_text()
+    assert re.search(r'ellipsis\s+=\s+9\b', text)
+    assert 'protected_environments = ["tikzpicture", "myenv"]' in text
+    assert 'unprotected_rules = ["ellipsis"]' in text

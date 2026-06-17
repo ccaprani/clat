@@ -294,7 +294,14 @@ def _cmd_list(argv):
     threshold = config['threshold']
 
     _print_header()
-    console.print(f'  [bold]threshold = {threshold}[/]\n')
+    console.print(f'  [bold]threshold = {threshold}[/]')
+    envs = config.get('protected_environments', [])
+    if envs:
+        console.print(f'  [dim]protected envs: {", ".join(envs)}[/]')
+    unprotected = config.get('unprotected_rules', [])
+    if unprotected:
+        console.print(f'  [dim]unprotected rules: {", ".join(unprotected)}[/]')
+    console.print()
 
     for r in sorted(RULES, key=lambda r: r.num):
         w = _effective_weight(r, config)
