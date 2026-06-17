@@ -20,6 +20,7 @@ from clat.rules import (
     rule14_ellipsis,
     rule15_ordinal_suffixes,
     rule16_table_line_endings,
+    rule17_abbreviation_spacing,
     warn_hardcoded_refs,
     warn_manual_sizing,
     warn_long_file,
@@ -477,6 +478,75 @@ class TestRule16:
         assert rule16_table_line_endings(src) == expected
 
 
+# ── Rule 17: abbreviation spacing ───────────────────────────────────
+
+class TestRule17:
+    def test_eg_before_lowercase(self):
+        assert rule17_abbreviation_spacing('use a tool, e.g. clat here') \
+            == 'use a tool, e.g.\\ clat here'
+
+    def test_ie_before_lowercase(self):
+        assert rule17_abbreviation_spacing('that is, i.e. the result') \
+            == 'that is, i.e.\\ the result'
+
+    def test_eg_before_capital_still_fixed(self):
+        # "e.g." never ends a sentence, so a following proper noun is fixed too.
+        assert rule17_abbreviation_spacing('languages, e.g. Python rules') \
+            == 'languages, e.g.\\ Python rules'
+
+    def test_cf_viz_vs_fixed(self):
+        assert rule17_abbreviation_spacing('cf. Smith') == 'cf.\\ Smith'
+        assert rule17_abbreviation_spacing('viz. the cases') == 'viz.\\ the cases'
+        assert rule17_abbreviation_spacing('A vs. B') == 'A vs.\\ B'
+
+    def test_et_al_before_lowercase(self):
+        assert rule17_abbreviation_spacing('Smith et al. showed that') \
+            == 'Smith et al.\\ showed that'
+
+    def test_et_al_before_open_paren(self):
+        assert rule17_abbreviation_spacing('Smith et al. (2020) found') \
+            == 'Smith et al.\\ (2020) found'
+
+    def test_et_al_before_capital_left_alone(self):
+        # Ambiguous: "et al." may end the sentence, so a capital is untouched.
+        src = 'reported by Smith et al. The next study'
+        assert rule17_abbreviation_spacing(src) == src
+
+    def test_etc_before_capital_left_alone(self):
+        src = 'apples, oranges, etc. Then we conclude'
+        assert rule17_abbreviation_spacing(src) == src
+
+    def test_etc_before_lowercase(self):
+        assert rule17_abbreviation_spacing('apples, etc. are available') \
+            == 'apples, etc.\\ are available'
+
+    def test_followed_by_comma_untouched(self):
+        src = 'use a tool, e.g., clat'
+        assert rule17_abbreviation_spacing(src) == src
+
+    def test_already_control_space_idempotent(self):
+        src = 'use a tool, e.g.\\ clat here'
+        assert rule17_abbreviation_spacing(src) == src
+
+    def test_collapses_multiple_spaces(self):
+        assert rule17_abbreviation_spacing('see e.g.   the thing') \
+            == 'see e.g.\\ the thing'
+
+    def test_skips_comment_lines(self):
+        src = '% e.g. a comment'
+        assert rule17_abbreviation_spacing(src) == src
+
+    def test_skips_verbatim(self):
+        src = '\\begin{verbatim}\ne.g. raw text\n\\end{verbatim}'
+        assert rule17_abbreviation_spacing(src) == src
+
+    def test_not_matched_inside_word(self):
+        # "revs." ends in "vs." but is part of a word — the leading letter
+        # boundary stops it being treated as the "vs." abbreviation.
+        src = 'engine revs. now climbing'
+        assert rule17_abbreviation_spacing(src) == src
+
+
 # ── Warnings (individual functions) ─────────────────────────────────
 
 class TestWarnings:
@@ -549,7 +619,7 @@ class TestWarnings:
 
 class TestRegistry:
     def test_all_rules_registered(self):
-        assert len(RULES) == 20
+        assert len(RULES) == 21
 
     def test_rule_ids_unique(self):
         ids = [r.id for r in RULES]
@@ -568,7 +638,7 @@ class TestRegistry:
         assert _get_rule('math_delimiters_display').num == 9
         assert _get_rule('math_delimiters_equation').num == 10
         assert _get_rule('tilde_before_refs').num == 11
-        assert _get_rule('float_after_heading').num == 20
+        assert _get_rule('float_after_heading').num == 21
 
     def test_display_math_delimiters_default_off(self):
         assert _get_rule('math_delimiters_display').weight == 0
@@ -578,7 +648,7 @@ class TestRegistry:
 
     def test_fixable_count(self):
         fixable = [r for r in RULES if r.fixable]
-        assert len(fixable) == 16
+        assert len(fixable) == 17
 
     def test_unfixable_count(self):
         unfixable = [r for r in RULES if not r.fixable]

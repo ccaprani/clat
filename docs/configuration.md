@@ -45,7 +45,7 @@ threshold = 5
 labels_inline         =  8  # Merge \label onto the same line as \section (fixable)
 decorative_comments   =  6  # Strip decorative comment separators (fixable)
 heading_spacing       =  7  # Two blank lines before headings, none after (fixable)
-# ... all 20 rules listed
+# ... all 21 rules listed
 ```
 
 `clat set --init` refuses to overwrite an existing `.clat.toml`. To start over,

@@ -123,7 +123,7 @@ offer.
 
 -   :material-format-list-numbered: **[Rules](rules.md)**
 
-    All 20 rules, what each does, and before/after examples.
+    All 21 rules, what each does, and before/after examples.
 
 -   :material-cog: **[Configuration](configuration.md)**
 

@@ -40,6 +40,25 @@ def _build_protect_pattern():
 
 PROTECT_RE = _build_protect_pattern()
 
+# ── Abbreviations that take an interword space ───────────────────────
+# After abbreviations such as "e.g." or "et al." the trailing period reads to
+# TeX as a full stop, so it inserts a wider end-of-sentence space.  Forcing a
+# control space ("\ ") keeps it an ordinary interword space (which still
+# stretches a little).
+#
+# ALWAYS abbreviations never end a sentence, so the space is fixed whatever
+# follows.  MAYBE abbreviations can legitimately end a sentence, so they are
+# only fixed before a clear continuation — a lowercase letter, digit, or an
+# opening parenthesis — leaving a following capital alone as a possible full
+# stop.
+INTERWORD_ABBREVIATIONS_ALWAYS = (r'e\.g\.', r'i\.e\.', r'cf\.', r'viz\.', r'vs\.')
+INTERWORD_ABBREVIATIONS_MAYBE = (r'et\s+al\.', r'etc\.')
+
+_ABBR_ALWAYS_RE = re.compile(
+    r'(?<![A-Za-z])(' + '|'.join(INTERWORD_ABBREVIATIONS_ALWAYS) + r')[ \t]+(?=\S)')
+_ABBR_MAYBE_RE = re.compile(
+    r'(?<![A-Za-z])(' + '|'.join(INTERWORD_ABBREVIATIONS_MAYBE) + r')[ \t]+(?=[a-z0-9(])')
+
 CONTINUATION_WORDS = re.compile(
     r'^(?:where|with|for|in\s+which|such\s+that|so\s+that|and|here|'
     r'noting|since|because|if|as|giving|yielding|from\s+which|'
@@ -677,6 +696,37 @@ def rule16_table_line_endings(text):
     return '\n'.join(result)
 
 
+def rule17_abbreviation_spacing(text):
+    r"""Force an ordinary interword space after abbreviations like ``e.g.``.
+
+    The trailing period of ``e.g.``, ``i.e.``, ``et al.`` and friends otherwise
+    reads to TeX as a full stop, producing a wider end-of-sentence space.
+    Replacing the following space with a control space (``\ ``) keeps it an
+    ordinary interword space (which still stretches a little).
+
+    ``e.g.``, ``i.e.``, ``cf.``, ``viz.`` and ``vs.`` never end a sentence and
+    are always fixed.  ``et al.`` and ``etc.`` can end a sentence, so they are
+    only fixed before a clear continuation (a lowercase letter, digit, or an
+    opening parenthesis); a following capital is left untouched.  Comments and
+    verbatim blocks are skipped.
+    """
+    lines = text.split('\n')
+    result = []
+    in_verbatim = False
+    for line in lines:
+        if re.match(r'^\s*\\begin\{(verbatim|lstlisting)\}', line):
+            in_verbatim = True
+        if re.match(r'^\s*\\end\{(verbatim|lstlisting)\}', line):
+            in_verbatim = False
+        if in_verbatim or line.strip().startswith('%'):
+            result.append(line)
+            continue
+        line = _ABBR_ALWAYS_RE.sub(r'\1\\ ', line)
+        line = _ABBR_MAYBE_RE.sub(r'\1\\ ', line)
+        result.append(line)
+    return '\n'.join(result)
+
+
 # ── Warnings ─────────────────────────────────────────────────────────
 
 def warn_hardcoded_refs(text, filename):
@@ -772,11 +822,12 @@ RULES = [
     Rule(14, 'ellipsis',             'Replace ... with \\dots',                                   rule14_ellipsis,                 weight=4, fixable=True,  order=120),
     Rule(15, 'ordinal_suffixes',     'Convert superscript ordinals to plain text (1st, 2nd)',     rule15_ordinal_suffixes,         weight=8, fixable=True,  order=130),
     Rule(16, 'table_line_endings',    'Table \\\\ on row line, \\hline/\\toprule on own line',      rule16_table_line_endings,       weight=7, fixable=True,  order=140),
+    Rule(17, 'abbreviation_spacing',  'Force interword space after e.g., i.e., et al.',            rule17_abbreviation_spacing,     weight=7, fixable=True,  order=145),
     # Unfixable rules (warnings / clunks)
-    Rule(17, 'long_file',            'Warn if file exceeds 2000 lines',                           warn_long_file,                  weight=3, fixable=False, order=200),
-    Rule(18, 'hardcoded_refs',       'Detect "Figure 3" instead of \\cref{...}',                  warn_hardcoded_refs,             weight=6, fixable=False, order=210),
-    Rule(19, 'manual_sizing',        'Detect \\big, \\Big etc. (prefer \\left/\\right)',          warn_manual_sizing,              weight=3, fixable=False, order=220),
-    Rule(20, 'float_after_heading',  'Detect float placed directly after a heading',              warn_float_after_heading,        weight=4, fixable=False, order=230),
+    Rule(18, 'long_file',            'Warn if file exceeds 2000 lines',                           warn_long_file,                  weight=3, fixable=False, order=200),
+    Rule(19, 'hardcoded_refs',       'Detect "Figure 3" instead of \\cref{...}',                  warn_hardcoded_refs,             weight=6, fixable=False, order=210),
+    Rule(20, 'manual_sizing',        'Detect \\big, \\Big etc. (prefer \\left/\\right)',          warn_manual_sizing,              weight=3, fixable=False, order=220),
+    Rule(21, 'float_after_heading',  'Detect float placed directly after a heading',              warn_float_after_heading,        weight=4, fixable=False, order=230),
 ]
 
 

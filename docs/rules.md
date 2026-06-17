@@ -1,6 +1,6 @@
 # Rules
 
-`clat` ships with **20 rules** — 16 that it can auto-fix and 4 detect-only
+`clat` ships with **21 rules** — 17 that it can auto-fix and 4 detect-only
 checks. Run `clat list` to see them all with their current weights and
 categories.
 
@@ -22,10 +22,11 @@ categories.
 | 14 | `ellipsis`                 |    4    |   ✓   | Replace `...` with `\dots`                            |
 | 15 | `ordinal_suffixes`         |    8    |   ✓   | Convert superscript ordinals to plain text (`1st`, `2nd`)|
 | 16 | `table_line_endings`       |    7    |   ✓   | Keep table `\\` on row lines and rules on own lines   |
-| 17 | `long_file`                |    3    |   ✗   | Warn if a file exceeds 2000 lines                      |
-| 18 | `hardcoded_refs`           |    6    |   ✗   | Detect `Figure 3` instead of `\cref{...}`             |
-| 19 | `manual_sizing`            |    3    |   ✗   | Detect `\big`, `\Big` etc.                           |
-| 20 | `float_after_heading`      |    4    |   ✗   | Detect a float placed directly after a heading         |
+| 17 | `abbreviation_spacing`     |    7    |   ✓   | Force interword space after `e.g.`, `i.e.`, `et al.`  |
+| 18 | `long_file`                |    3    |   ✗   | Warn if a file exceeds 2000 lines                      |
+| 19 | `hardcoded_refs`           |    6    |   ✗   | Detect `Figure 3` instead of `\cref{...}`             |
+| 20 | `manual_sizing`            |    3    |   ✗   | Detect `\big`, `\Big` etc.                           |
+| 21 | `float_after_heading`      |    4    |   ✗   | Detect a float placed directly after a heading         |
 
 !!! tip "Order still matters, but sweeps help"
     Fixable rules are applied in a fixed sequence (decorative comments are
@@ -298,6 +299,26 @@ $A$ & 1 \\
 \hline
 ```
 
+### 17 · `abbreviation_spacing`
+
+After abbreviations such as `e.g.`, `i.e.` or `et al.`, the trailing period
+reads to TeX as a full stop, so it inserts a wider end-of-sentence space.
+Replacing the following space with a control space (`\ `) keeps it an ordinary
+interword space (one that still stretches a little).
+
+`e.g.`, `i.e.`, `cf.`, `viz.` and `vs.` never end a sentence, so they are fixed
+whatever follows. `et al.` and `etc.` can end a sentence, so they are only fixed
+before a clear continuation — a lowercase letter, a digit, or an opening
+parenthesis — leaving a following capital alone as a possible full stop.
+
+```latex
+% before
+Use a tool, e.g. clat. Reported by Smith et al. (2020).
+
+% after
+Use a tool, e.g.\ clat. Reported by Smith et al.\ (2020).
+```
+
 ---
 
 ## Detect-only rules
@@ -306,23 +327,23 @@ These rules cannot be auto-fixed. Above the threshold they are reported as
 **clunks** (needs your attention); below it, as **splats**. At weight `0`, they
 are skipped entirely.
 
-### 17 · `long_file`
+### 18 · `long_file`
 
 Warn when a file exceeds **2000 lines** — a nudge to split it up with
 `\input`.
 
-### 18 · `hardcoded_refs`
+### 19 · `hardcoded_refs`
 
 Flag hardcoded cross-references such as `Figure 3`, `Table 2`, or `Eq. 5`,
 which should usually be `\cref{...}` so numbering stays automatic. References
 already inside `\ref{`/`\cref{`/`\Cref{` are ignored.
 
-### 19 · `manual_sizing`
+### 20 · `manual_sizing`
 
 Flag manual delimiter sizing — `\big`, `\Big`, `\bigg`, `\Bigg` — where
 `\left`/`\right` is usually preferable.
 
-### 20 · `float_after_heading`
+### 21 · `float_after_heading`
 
 Flag a `figure`, `table`, or `algorithm` placed directly after a heading
 (allowing only blank lines, `%` comments, and a `\label` in between), and
