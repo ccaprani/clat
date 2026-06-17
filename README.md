@@ -157,10 +157,11 @@ Run `clat list` to see all rules with their numbers, weights, and current catego
 | 14 | ellipsis                 |    4    |   yes   | Replace `...` with `\dots`                              |
 | 15 | ordinal_suffixes         |    8    |   yes   | Convert superscript ordinals to plain text (`1st`, `2nd`)|
 | 16 | table_line_endings       |    7    |   yes   | Keep table `\\` on row lines and rules on own lines     |
-| 17 | long_file                |    3    |   no    | Warn if file exceeds 2000 lines                          |
-| 18 | hardcoded_refs           |    6    |   no    | Detect `Figure 3` instead of `\cref{...}`                |
-| 19 | manual_sizing            |    3    |   no    | Detect `\big`, `\Big` etc.                              |
-| 20 | float_after_heading      |    4    |   no    | Detect float placed directly after a heading             |
+| 17 | abbreviation_spacing     |    7    |   yes   | Force interword space after `e.g.`, `i.e.`, `et al.`     |
+| 18 | long_file                |    3    |   no    | Warn if file exceeds 2000 lines                          |
+| 19 | hardcoded_refs           |    6    |   no    | Detect `Figure 3` instead of `\cref{...}`                |
+| 20 | manual_sizing            |    3    |   no    | Detect `\big`, `\Big` etc.                              |
+| 21 | float_after_heading      |    4    |   no    | Detect float placed directly after a heading             |
 
 ## Configuration
 
@@ -182,7 +183,7 @@ threshold = 5
 labels_inline         =  8  # Merge \label onto the same line as \section (fixable)
 decorative_comments   =  6  # Strip decorative comment separators (fixable)
 heading_spacing       =  7  # Two blank lines before headings, none after (fixable)
-# ... all 20 rules listed
+# ... all 21 rules listed
 ```
 
 Edit the file directly, or use the CLI:
