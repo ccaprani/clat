@@ -21,6 +21,7 @@ from clat.rules import (
     rule15_ordinal_suffixes,
     rule16_table_line_endings,
     rule17_abbreviation_spacing,
+    rule18_join_wrapped_lines,
     warn_hardcoded_refs,
     warn_manual_sizing,
     warn_long_file,
@@ -408,6 +409,44 @@ class TestRule12:
         # so no substitution occurs and the line is left alone.
         assert rule12_number_unit_spacing('$x$ kN') == '$x$ kN'
 
+    def test_preamble_option_left_alone(self):
+        # geometry lengths in the preamble are TeX dimensions, not prose.
+        src = r'\usepackage[margin=25mm]{geometry}'
+        assert rule12_number_unit_spacing(src) == src
+
+    def test_key_value_dimension_left_alone(self):
+        src = r'\geometry{margin=25mm, top=30mm}'
+        assert rule12_number_unit_spacing(src) == src
+
+    def test_bracket_argument_dimension_left_alone(self):
+        # Row spacing "\\[10mm]" is a dimension; \, would break it.
+        src = r'A row \\[10mm] and another'
+        assert rule12_number_unit_spacing(src) == src
+
+    def test_includegraphics_width_left_alone(self):
+        src = r'\includegraphics[width=100mm]{fig}'
+        assert rule12_number_unit_spacing(src) == src
+
+    def test_preamble_skipped_but_body_spaced(self):
+        src = (
+            '\\documentclass{article}\n'
+            '\\usepackage[margin=25mm]{geometry}\n'
+            '\\begin{document}\n'
+            'A beam 100mm long carries 50 kN.\n'
+            '\\end{document}\n'
+        )
+        out = rule12_number_unit_spacing(src)
+        assert r'\usepackage[margin=25mm]{geometry}' in out  # preamble intact
+        assert 'A beam 100\\,mm long carries 50\\,kN.' in out  # body spaced
+
+    def test_prose_units_in_text_macro_still_spaced(self):
+        # A '{'-delimited text argument is prose, so spacing still applies.
+        assert rule12_number_unit_spacing(r'\textbf{100 kN}') == r'\textbf{100\,kN}'
+
+    def test_fragment_without_preamble_treated_as_body(self):
+        # An \input-ed chapter has no \begin{document}; still spaced.
+        assert rule12_number_unit_spacing('a load of 60 kN') == 'a load of 60\\,kN'
+
 
 # ── Rule 13: old font commands ──────────────────────────────────────
 
@@ -552,6 +591,144 @@ class TestRule17:
         assert rule17_abbreviation_spacing(src) == src
 
 
+# ── Rule 18: join hard-wrapped lines ────────────────────────────────
+
+# A paragraph hard-wrapped at ~65 columns, the way an editor or `fmt` leaves
+# it: three sentences, each broken across several physical lines.
+LOREM_WRAPPED = (
+    'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do\n'
+    'eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim\n'
+    'ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut\n'
+    'aliquip ex ea commodo consequat. Duis aute irure dolor in\n'
+    'reprehenderit in voluptate velit esse cillum dolore.'
+)
+
+LOREM_SENTENCES = (
+    'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do '
+    'eiusmod tempor incididunt ut labore et dolore magna aliqua.\n'
+    'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris '
+    'nisi ut aliquip ex ea commodo consequat.\n'
+    'Duis aute irure dolor in reprehenderit in voluptate velit esse '
+    'cillum dolore.'
+)
+
+
+class TestRule18:
+    def test_lorem_ipsum_join_reflows_paragraph(self):
+        # Join alone collapses the wrapped paragraph to one physical line.
+        joined = rule18_join_wrapped_lines(LOREM_WRAPPED)
+        assert '\n' not in joined
+        assert joined.startswith('Lorem ipsum dolor sit amet')
+        assert joined.endswith('cillum dolore.')
+        assert '  ' not in joined  # single spaces at the old line breaks
+
+    def test_lorem_ipsum_pipeline_is_one_sentence_per_line(self):
+        # Join + one_sentence_per_line reflow to exactly one sentence per line.
+        result = texfmt(LOREM_WRAPPED, 'lorem.tex')
+        assert result.text == LOREM_SENTENCES
+        assert result.converged
+        assert texfmt(result.text, 'lorem.tex').text == result.text  # idempotent
+
+    def test_is_inverse_of_one_sentence_per_line(self):
+        # A hard-wrapped sentence is the case rule3 cannot handle on its own.
+        wrapped = 'a sentence that has been\nwrapped across two lines.'
+        assert rule3_one_sentence_per_line(wrapped) == wrapped   # rule3 can't join
+        assert rule18_join_wrapped_lines(wrapped) == (
+            'a sentence that has been wrapped across two lines.')
+
+    def test_join_mid_sentence_break(self):
+        src = 'A wrapped sentence that runs\nonto a second line here.'
+        assert rule18_join_wrapped_lines(src) == (
+            'A wrapped sentence that runs onto a second line here.')
+
+    def test_sentence_boundary_not_joined(self):
+        src = 'First sentence here.\nSecond sentence here.'
+        assert rule18_join_wrapped_lines(src) == src
+
+    def test_question_and_exclamation_are_boundaries(self):
+        src = 'Is this a maximum?\nIt is not.\nIt cannot be!\nSo says the code.'
+        assert rule18_join_wrapped_lines(src) == src
+
+    def test_math_delimiter_closer_counts_as_terminator(self):
+        # The sentence ends inside "$$...$$"; the trailing delimiters must not
+        # hide the terminator, or the next sentence would be wrongly merged.
+        src = 'Uses display math $$E = mc^2.$$\nA new sentence follows.'
+        assert rule18_join_wrapped_lines(src) == src
+
+    def test_trailing_bracket_terminator(self):
+        src = 'A cited clause (Cl~2.2.3).\nThe next sentence here.'
+        assert rule18_join_wrapped_lines(src) == src
+
+    def test_abbreviation_at_line_end_is_not_a_boundary(self):
+        # "Fig." is protected, so the wrapped line is joined, not left broken.
+        src = 'As shown in Fig.\n3 the trend is clear.'
+        assert rule18_join_wrapped_lines(src) == (
+            'As shown in Fig. 3 the trend is clear.')
+
+    def test_blank_line_is_a_boundary(self):
+        src = 'One paragraph that\nwraps.\n\nAnother paragraph that\nwraps too.'
+        assert rule18_join_wrapped_lines(src) == (
+            'One paragraph that wraps.\n\nAnother paragraph that wraps too.')
+
+    def test_comment_line_is_a_boundary(self):
+        src = 'A wrapped line\n% an interposed comment\ncontinues here.'
+        assert rule18_join_wrapped_lines(src) == src
+
+    def test_structural_command_is_a_boundary(self):
+        # Body prose is never pulled onto a heading line.
+        src = '\\section{Method}\nThe method wraps\nacross lines.'
+        assert rule18_join_wrapped_lines(src) == (
+            '\\section{Method}\nThe method wraps across lines.')
+
+    def test_protected_environment_body_left_verbatim(self):
+        src = '\\begin{equation}\na = b\nc = d\n\\end{equation}'
+        assert rule18_join_wrapped_lines(src) == src
+
+    def test_abstract_prose_is_reflowed(self):
+        # An abstract is prose, not a protected block, so its wrapped lines are
+        # joined like any body paragraph (the \begin/\end stay put).
+        src = ('\\begin{abstract}\nA wrapped abstract line\n'
+               'continues here.\n\\end{abstract}')
+        assert rule18_join_wrapped_lines(src) == (
+            '\\begin{abstract}\n'
+            'A wrapped abstract line continues here.\n'
+            '\\end{abstract}')
+
+    def test_item_body_gathered_but_not_pulled_up(self):
+        src = ('\\item A nominal value chosen to represent a\n'
+               'quantity.\nIt may be a mean.')
+        assert rule18_join_wrapped_lines(src) == (
+            '\\item A nominal value chosen to represent a quantity.\n'
+            'It may be a mean.')
+
+    def test_consecutive_items_not_merged(self):
+        src = '\\item First.\n\\item Second wrapped\nline.'
+        assert rule18_join_wrapped_lines(src) == (
+            '\\item First.\n\\item Second wrapped line.')
+
+    def test_wrapped_heading_title_joined_without_leaking(self):
+        src = ('\\subsection{A long title that wraps\n'
+               'across a line}\nBody starts here.')
+        assert rule18_join_wrapped_lines(src) == (
+            '\\subsection{A long title that wraps across a line}\n'
+            'Body starts here.')
+
+    def test_masked_picture_is_a_boundary(self):
+        # Prose either side of a protected picture must not merge into the
+        # sentinel that masks it, and the picture body stays untouched.
+        src = ('Prose before.\n'
+               '\\begin{tikzpicture}\n\\node {a, b. c};\n\\end{tikzpicture}\n'
+               'Prose after that wraps\nonto here.')
+        result = texfmt(src, 'x.tex')
+        assert '\\node {a, b. c};' in result.text          # picture untouched
+        assert 'Prose after that wraps onto here.' in result.text  # joined
+        assert result.converged
+
+    def test_idempotent(self):
+        result = texfmt(LOREM_WRAPPED, 'lorem.tex')
+        assert texfmt(result.text, 'lorem.tex').text == result.text
+
+
 # ── Warnings (individual functions) ─────────────────────────────────
 
 class TestWarnings:
@@ -624,7 +801,7 @@ class TestWarnings:
 
 class TestRegistry:
     def test_all_rules_registered(self):
-        assert len(RULES) == 21
+        assert len(RULES) == 22
 
     def test_rule_ids_unique(self):
         ids = [r.id for r in RULES]
@@ -645,6 +822,14 @@ class TestRegistry:
         assert _get_rule('tilde_before_refs').num == 11
         assert _get_rule('float_after_heading').num == 21
 
+    def test_join_wrapped_lines_runs_before_sentence_split(self):
+        joiner = _get_rule('join_wrapped_lines')
+        assert joiner is not None
+        assert joiner.num == 22
+        assert joiner.fixable is True
+        # It must precede one_sentence_per_line so the split sees whole sentences.
+        assert joiner.order < _get_rule('one_sentence_per_line').order
+
     def test_display_math_delimiters_default_off(self):
         assert _get_rule('math_delimiters_display').weight == 0
 
@@ -653,7 +838,7 @@ class TestRegistry:
 
     def test_fixable_count(self):
         fixable = [r for r in RULES if r.fixable]
-        assert len(fixable) == 17
+        assert len(fixable) == 18
 
     def test_unfixable_count(self):
         unfixable = [r for r in RULES if not r.fixable]
