@@ -1,6 +1,6 @@
 # Rules
 
-`clat` ships with **21 rules** — 17 that it can auto-fix and 4 detect-only
+`clat` ships with **22 rules** — 18 that it can auto-fix and 4 detect-only
 checks. Run `clat list` to see them all with their current weights and
 categories.
 
@@ -23,6 +23,7 @@ categories.
 | 15 | `ordinal_suffixes`         |    8    |   ✓   | Convert superscript ordinals to plain text (`1st`, `2nd`)|
 | 16 | `table_line_endings`       |    7    |   ✓   | Keep table `\\` on row lines and rules on own lines   |
 | 17 | `abbreviation_spacing`     |    7    |   ✓   | Force interword space after `e.g.`, `i.e.`, `et al.`  |
+| 22 | `join_wrapped_lines`       |    8    |   ✓   | Join hard-wrapped lines so each sentence is one line   |
 | 18 | `long_file`                |    3    |   ✗   | Warn if a file exceeds 2000 lines                      |
 | 19 | `hardcoded_refs`           |    6    |   ✗   | Detect `Figure 3` instead of `\cref{...}`             |
 | 20 | `manual_sizing`            |    3    |   ✗   | Detect `\big`, `\Big` etc.                           |
@@ -249,6 +250,12 @@ commands, and missing spaces, for both bare numbers and inline-math values.
 A bare `s` is deliberately excluded from the no-space fix so that decades like
 `1990s` are not mistaken for units.
 
+Only the **document body** is touched. A number and unit are a TeX dimension —
+not prose — in the preamble, and after a `=` or `[` anywhere (`margin=25mm`,
+`\includegraphics[width=100mm]`, row spacing `\\[10mm]`); there `\,` would be
+invalid, so those are left alone. Units inside a text-mode argument such as
+`\textbf{100 kN}` are still spaced.
+
 ### 13 · `old_font_commands`
 
 Replace the old TeX font-switch groups with their LaTeX2e command forms:
@@ -325,6 +332,37 @@ Use a tool, e.g. clat. Reported by Smith et al. (2020).
 % after
 Use a tool, e.g.\ clat. Reported by Smith et al.\ (2020).
 ```
+
+### 22 · `join_wrapped_lines`
+
+The inverse of [Rule 7 (`one_sentence_per_line`)](#7-one_sentence_per_line):
+where that rule *splits* a line carrying several sentences, this one *joins* a
+sentence that has been hard-wrapped across several lines. With both enabled,
+prose settles to exactly one sentence per line — even when the source arrives
+wrapped at a fixed column (as an editor or `fmt` leaves it), which Rule 7 alone
+cannot repair because it never joins lines.
+
+```latex
+% before
+Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
+ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
+aliquip ex ea commodo consequat.
+
+% after
+Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+```
+
+A line is joined onto the current one unless the current one already ends a
+sentence — a terminal `.`, `?`, or `!` after abbreviation protection (`Fig.`,
+`e.g.`, …) and any trailing math, quote, or bracket closers, so a sentence
+ending inside `$$…$$` or `\emph{…}` is still recognised. Blank lines, comments,
+protected environments (`equation`, `table`, `figure`, `verbatim`,
+…), and structural commands are boundaries. An `\item` starts a fresh run, so
+its wrapped body is gathered without being pulled onto the line above; a heading
+whose title is wrapped across lines is rejoined into a single line rather than
+spilling into the following prose.
 
 ---
 

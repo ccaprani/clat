@@ -62,6 +62,8 @@ For example, clat can:
 
 - Merge stray `\label`s onto their `\section` lines
 - Split prose to one sentence per line
+- Join hard-wrapped prose back into whole sentences (the inverse — so
+  fixed-column source ends up one sentence per line too)
 - Replace `{\bf text}` with `\textbf{text}`
 - Configure inline and display math delimiter preferences separately
 - Ensure `~` before `\ref`, `\cite`, and similar commands
@@ -188,7 +190,7 @@ unprotected_rules = []
 labels_inline         =  8  # Merge \label onto the same line as \section (fixable)
 decorative_comments   =  6  # Strip decorative comment separators (fixable)
 heading_spacing       =  7  # Two blank lines before headings, none after (fixable)
-# ... all 21 rules listed
+# ... all 22 rules listed
 ```
 
 ### Protected environments

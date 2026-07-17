@@ -229,31 +229,77 @@ def rule2_equation_separators(text):
     return '\n'.join(result)
 
 
+# ── Shared prose helpers (used by the sentence split/join rules) ─────
+# rule3 (one_sentence_per_line) and rule18 (join_wrapped_lines) are inverse
+# operations, so they must agree exactly on which lines are prose and where a
+# sentence ends.  The shared regexes and helpers below keep the two in step.
+
+_PROSE_SKIP_RE = re.compile(
+    r'^\s*(%|\\begin|\\end|\\item|\\paragraph|\\section|\\subsection|'
+    r'\\subsubsection|\\caption|\\label|\\centering|\\includegraphics|'
+    r'\\toprule|\\midrule|\\bottomrule|\\hline|\\RequirePackage|'
+    r'\\usepackage|\\newcommand|\\renewcommand|\\def|\\let|\\input|'
+    r'\\bibliography|\\documentclass|\\title|\\author|\\address|'
+    r'\\ead|\\cortext|\\journal|\\bibliographystyle|\\addtolength|'
+    r'\\Require|\\Ensure|\\Statex|\\State|\\For|\\EndFor|\\If|\\EndIf)'
+)
+
+# Environments whose bodies are never split or joined as prose.
+_PROSE_ENV_BEGIN_RE = re.compile(
+    r'^\s*\\begin\{(equation|align|table|tabular|figure|algorithm|'
+    r'algorithmic|keyword|frontmatter|verbatim|lstlisting)\}')
+_PROSE_ENV_END_RE = re.compile(
+    r'^\s*\\end\{(equation|align|table|tabular|figure|algorithm|'
+    r'algorithmic|keyword|frontmatter|verbatim|lstlisting)\}')
+
+_ITEM_RE = re.compile(r'^\s*\\item\b')
+
+# Prefix of the sentinel _mask_environments leaves in place of a masked picture
+# block; the join rule must treat it as a boundary, never merging across it.
+_PROTECT_SENTINEL_PREFIX = '\x01CLAT-PROTECTED-'
+
+# Trailing math/quote/bracket closers to strip before looking for a sentence
+# terminator, so a sentence ending inside "$$...$$", "\emph{...}", or quotes
+# still reads as terminated (e.g. "...$$E = mc^2.$$" ends a sentence).
+_SENTENCE_CLOSERS_RE = re.compile(
+    r'(?:\$+|\\[)\]]|[)\]}\'"`»”’])+\s*$'
+)
+
+
+def _ends_sentence(line):
+    """True if ``line`` ends a sentence (terminal .?! after closers/abbrevs)."""
+    protected = PROTECT_RE.sub(lambda m: m.group(0)[:-1] + PLACEHOLDER, line)
+    stripped = _SENTENCE_CLOSERS_RE.sub('', protected.rstrip()).rstrip()
+    return bool(stripped) and stripped[-1] in '.?!'
+
+
+def _has_inline_comment(line):
+    """True if ``line`` carries an unescaped ``%`` comment."""
+    return re.search(r'(?<!\\)%', line) is not None
+
+
+def _brace_balance(line):
+    """Net count of unescaped ``{`` minus ``}`` (comment tail ignored)."""
+    line = re.sub(r'(?<!\\)%.*$', '', line)
+    opens = len(re.findall(r'(?<!\\)\{', line))
+    closes = len(re.findall(r'(?<!\\)\}', line))
+    return opens - closes
+
+
 def rule3_one_sentence_per_line(text):
     """Split sentences onto individual lines, protecting abbreviations."""
     lines = text.split('\n')
     result = []
-    skip_re = re.compile(
-        r'^\s*(%|\\begin|\\end|\\item|\\paragraph|\\section|\\subsection|'
-        r'\\subsubsection|\\caption|\\label|\\centering|\\includegraphics|'
-        r'\\toprule|\\midrule|\\bottomrule|\\hline|\\RequirePackage|'
-        r'\\usepackage|\\newcommand|\\renewcommand|\\def|\\let|\\input|'
-        r'\\bibliography|\\documentclass|\\title|\\author|\\address|'
-        r'\\ead|\\cortext|\\journal|\\bibliographystyle|\\addtolength|'
-        r'\\Require|\\Ensure|\\Statex|\\State|\\For|\\EndFor|\\If|\\EndIf)'
-    )
     in_env = 0
     for line in lines:
         stripped = line.strip()
-        if re.match(r'^\s*\\begin\{(equation|align|table|tabular|figure|algorithm|'
-                     r'algorithmic|abstract|keyword|frontmatter|verbatim|lstlisting)\}', line):
+        if _PROSE_ENV_BEGIN_RE.match(line):
             in_env += 1
-        if re.match(r'^\s*\\end\{(equation|align|table|tabular|figure|algorithm|'
-                     r'algorithmic|abstract|keyword|frontmatter|verbatim|lstlisting)\}', line):
+        if _PROSE_ENV_END_RE.match(line):
             in_env = max(0, in_env - 1)
             result.append(line)
             continue
-        if in_env or not stripped or stripped == '%' or skip_re.match(stripped):
+        if in_env or not stripped or stripped == '%' or _PROSE_SKIP_RE.match(stripped):
             result.append(line)
             continue
         protected = PROTECT_RE.sub(lambda m: m.group(0)[:-1] + PLACEHOLDER, line)
@@ -509,6 +555,11 @@ def rule12_number_unit_spacing(text):
 
     Already-correct ``\\,`` spacing is left unchanged.  No-space fixes exclude
     bare ``s`` to avoid turning decades such as ``1990s`` into units.
+
+    Only the document body is touched.  In the preamble, and after a ``=`` or
+    ``[`` (``margin=25mm``, ``\\[10mm]``), a number and unit form a TeX
+    dimension or package option where ``\\,`` is invalid, so they are left
+    alone.
     """
     units = sorted(_UNITS, key=len, reverse=True)
     no_sep_units = sorted((u for u in _UNITS if u != r's'), key=len, reverse=True)
@@ -523,20 +574,25 @@ def rule12_number_unit_spacing(text):
         r'\\[ \t]+)'
     )
 
+    # A number that opens a key=value option or a bracket argument
+    # (margin=25mm, width=100mm, \\[10mm]) is a TeX dimension, not prose, and
+    # must not gain a \,: exclude a preceding '=' or '[' as well as letters.
+    # A preceding digit is excluded too so a match cannot start mid-number
+    # (which would otherwise sneak a \, into the tail of a guarded number).
+    num_start = r'(?<![A-Za-z\\=\[\d])'
+
     # 1. Digit-ended numbers with an explicit, wrong-sized separator.
     explicit_digit_re = re.compile(
-        r'(?P<num>(?<![A-Za-z\\])\d+(?:\.\d+)?)'
+        r'(?P<num>' + num_start + r'\d+(?:\.\d+)?)'
         r'(?P<sep>' + spacing + r')'
         r'(?P<unit>(?:' + unit_pat + r'))' + unit_boundary
     )
-    text = explicit_digit_re.sub(r'\g<num>\\,\g<unit>', text)
 
     # 2. Digit-ended numbers with no separator, e.g. "100kN".
     no_sep_digit_re = re.compile(
-        r'(?P<num>(?<![A-Za-z\\])\d+(?:\.\d+)?)'
+        r'(?P<num>' + num_start + r'\d+(?:\.\d+)?)'
         r'(?P<unit>(?:' + no_sep_unit_pat + r'))' + unit_boundary
     )
-    text = no_sep_digit_re.sub(r'\g<num>\\,\g<unit>', text)
 
     # 3. Closing-dollar ended inline math, e.g. "$78$ kN" or "$EI = 78$~kN".
     # Require the content to end in a digit or closing brace/bracket so that
@@ -547,14 +603,30 @@ def rule12_number_unit_spacing(text):
         r'(?P<sep>' + spacing + r')'
         r'(?P<unit>(?:' + unit_pat + r'))' + unit_boundary
     )
-    text = explicit_dollar_re.sub(r'\g<expr>\\,\g<unit>', text)
-
     no_sep_dollar_re = re.compile(
         r'(?P<expr>' + dollar_expr + r')'
         r'(?P<unit>(?:' + no_sep_unit_pat + r'))' + unit_boundary
     )
-    text = no_sep_dollar_re.sub(r'\g<expr>\\,\g<unit>', text)
-    return text
+
+    def _space_units(chunk):
+        chunk = explicit_digit_re.sub(r'\g<num>\\,\g<unit>', chunk)
+        chunk = no_sep_digit_re.sub(r'\g<num>\\,\g<unit>', chunk)
+        chunk = explicit_dollar_re.sub(r'\g<expr>\\,\g<unit>', chunk)
+        chunk = no_sep_dollar_re.sub(r'\g<expr>\\,\g<unit>', chunk)
+        return chunk
+
+    # Unit spacing is a text-mode prose fix.  The preamble is all commands and
+    # package options (e.g. geometry lengths) where \, is invalid, so restrict
+    # the fix to the document body.  A fragment with no \begin{document} (an
+    # \input-ed chapter, say) is treated as body.
+    begin = re.search(r'\\begin\{document\}', text)
+    if not begin:
+        return _space_units(text)
+    end = re.search(r'\\end\{document\}', text)
+    body_end = end.start() if end else len(text)
+    return (text[:begin.end()]
+            + _space_units(text[begin.end():body_end])
+            + text[body_end:])
 
 
 def rule13_old_font_commands(text):
@@ -732,6 +804,106 @@ def rule17_abbreviation_spacing(text):
     return '\n'.join(result)
 
 
+def rule18_join_wrapped_lines(text):
+    r"""Join hard-wrapped prose lines so each sentence is on one line.
+
+    The inverse of :func:`rule3_one_sentence_per_line`: where that rule *splits*
+    a line carrying several sentences, this one *joins* a sentence that has been
+    hard-wrapped across several lines.  Running both settles prose to exactly one
+    sentence per line rather than leaving mid-sentence line breaks behind.
+
+    A prose line is joined onto the current run unless the run already ends a
+    sentence — a terminal ``.``/``?``/``!`` (after abbreviation protection and
+    any trailing math/quote/bracket closers).  That test is the exact inverse of
+    rule3's split point, so the two rules reach a fixed point instead of fighting
+    across sweeps.
+
+    Boundaries that never join across: blank lines, comments, protected
+    environments (equation, table, figure, verbatim, ...), masked
+    picture sentinels, and structural commands.  An ``\item`` starts a fresh run
+    so its wrapped body is gathered without being pulled onto the line above; a
+    structural command left with open braces — a heading title wrapped across
+    lines — absorbs continuation lines until the braces balance, so the title
+    becomes one line and never leaks into the following prose.
+    """
+    lines = text.split('\n')
+    result = []
+    buffer = None  # text of the run being accumulated, or None
+
+    def flush():
+        nonlocal buffer
+        if buffer is not None:
+            result.append(buffer)
+            buffer = None
+
+    in_env = 0
+    i = 0
+    n = len(lines)
+    while i < n:
+        line = lines[i]
+        stripped = line.strip()
+
+        # Protected environments (same set as rule3): bodies are left verbatim.
+        if _PROSE_ENV_BEGIN_RE.match(line):
+            in_env += 1
+        if _PROSE_ENV_END_RE.match(line):
+            in_env = max(0, in_env - 1)
+            flush()
+            result.append(line)
+            i += 1
+            continue
+        if in_env:
+            flush()
+            result.append(line)
+            i += 1
+            continue
+
+        # Hard boundaries: blank lines, comments, masked picture sentinels.
+        if (not stripped or stripped.startswith('%')
+                or _PROTECT_SENTINEL_PREFIX in line):
+            flush()
+            result.append(line)
+            i += 1
+            continue
+
+        # \item begins a fresh joinable run: its wrapped body is gathered, but it
+        # is never appended onto the preceding line.
+        if _ITEM_RE.match(line):
+            flush()
+            buffer = line.rstrip()
+            i += 1
+            continue
+
+        # Other structural commands are boundaries.  If such a line leaves its
+        # braces open (a heading title wrapped across lines), absorb continuation
+        # lines until the braces balance so the title stays a single line.
+        if _PROSE_SKIP_RE.match(stripped):
+            flush()
+            merged = line.rstrip()
+            while (_brace_balance(merged) > 0 and i + 1 < n
+                   and lines[i + 1].strip()
+                   and not lines[i + 1].strip().startswith('%')):
+                i += 1
+                merged = merged.rstrip() + ' ' + lines[i].strip()
+            result.append(merged)
+            i += 1
+            continue
+
+        # Prose: join onto the current run unless it already ends a sentence (or
+        # carries an inline comment that would swallow the appended text).
+        if buffer is None:
+            buffer = line.rstrip()
+        elif _ends_sentence(buffer) or _has_inline_comment(buffer):
+            flush()
+            buffer = line.rstrip()
+        else:
+            buffer = buffer.rstrip() + ' ' + stripped
+        i += 1
+
+    flush()
+    return '\n'.join(result)
+
+
 # ── Warnings ─────────────────────────────────────────────────────────
 
 def warn_hardcoded_refs(text, filename):
@@ -828,6 +1000,7 @@ RULES = [
     Rule(15, 'ordinal_suffixes',     'Convert superscript ordinals to plain text (1st, 2nd)',     rule15_ordinal_suffixes,         weight=8, fixable=True,  order=130),
     Rule(16, 'table_line_endings',    'Table \\\\ on row line, \\hline/\\toprule on own line',      rule16_table_line_endings,       weight=7, fixable=True,  order=140),
     Rule(17, 'abbreviation_spacing',  'Force interword space after e.g., i.e., et al.',            rule17_abbreviation_spacing,     weight=7, fixable=True,  order=145),
+    Rule(22, 'join_wrapped_lines',    'Join hard-wrapped lines so each sentence is one line',      rule18_join_wrapped_lines,       weight=8, fixable=True,  order=65),
     # Unfixable rules (warnings / clunks)
     Rule(18, 'long_file',            'Warn if file exceeds 2000 lines',                           warn_long_file,                  weight=3, fixable=False, order=200),
     Rule(19, 'hardcoded_refs',       'Detect "Figure 3" instead of \\cref{...}',                  warn_hardcoded_refs,             weight=6, fixable=False, order=210),
@@ -976,7 +1149,7 @@ def save_config(config, path):
 # afterwards, so the rule never sees its contents.  Masking is applied per
 # rule, so an individual rule can opt back in via ``unprotected_rules``.
 
-_PROTECT_SENTINEL = '\x01CLAT-PROTECTED-{}\x01'
+_PROTECT_SENTINEL = _PROTECT_SENTINEL_PREFIX + '{}\x01'
 _BEGIN_ANY_ENV_RE = re.compile(r'\\begin\{([^}]+)\}')
 
 
