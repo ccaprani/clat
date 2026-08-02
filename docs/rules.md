@@ -153,7 +153,8 @@ environments (nesting-aware).
 Put each sentence on its own line — kinder to version control and review
 diffs. Abbreviations (`e.g.`, `i.e.`, `Fig.`, `et al.`, …) are protected so
 they don't trigger a split, and math, tables, and preamble lines are left
-untouched.
+untouched. Caption bodies are treated as prose too: continuation sentences use
+the same indentation as their `\caption` command.
 
 ```latex
 % before
@@ -359,10 +360,12 @@ sentence — a terminal `.`, `?`, or `!` after abbreviation protection (`Fig.`,
 `e.g.`, …) and any trailing math, quote, or bracket closers, so a sentence
 ending inside `$$…$$` or `\emph{…}` is still recognised. Blank lines, comments,
 protected environments (`equation`, `table`, `figure`, `verbatim`,
-…), and structural commands are boundaries. An `\item` starts a fresh run, so
-its wrapped body is gathered without being pulled onto the line above; a heading
-whose title is wrapped across lines is rejoined into a single line rather than
-spilling into the following prose.
+…), and structural commands are boundaries. A float body remains protected
+except for its `\caption` body, which is rejoined here and then split by Rule 7
+so that it also settles to one sentence per line. An `\item` starts a fresh run,
+so its wrapped body is gathered without being pulled onto the line above; a
+heading whose title is wrapped across lines is rejoined into a single line rather
+than spilling into the following prose.
 
 ---
 
