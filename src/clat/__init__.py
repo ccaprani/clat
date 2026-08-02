@@ -1,6 +1,6 @@
 """clat — Colin's LaTeX Tidy. Somewhere between a clang and a splat."""
 
-__version__ = '0.6.0'
+__version__ = '0.7.0'
 
 from .rules import (
     texfmt, load_config, save_config, generate_default_config,
