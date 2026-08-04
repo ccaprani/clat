@@ -145,6 +145,16 @@ class TestRule3:
         result = rule3_one_sentence_per_line(src)
         assert result == 'First sentence.\nSecond sentence.'
 
+    def test_split_sentence_starting_with_latex_command(self):
+        src = r'First sentence. \AS{5100.1}{2017} Cl~8.3 states it.'
+        assert rule3_one_sentence_per_line(src) == (
+            'First sentence.\n\\AS{5100.1}{2017} Cl~8.3 states it.')
+
+    def test_split_sentence_starting_with_lowercase_latex_command(self):
+        src = r'First sentence. \textit{Second} sentence.'
+        assert rule3_one_sentence_per_line(src) == (
+            'First sentence.\n\\textit{Second} sentence.')
+
     def test_protect_abbreviation(self):
         src = 'See Fig. 3 for details.'
         result = rule3_one_sentence_per_line(src)
