@@ -247,10 +247,10 @@ _PROSE_SKIP_RE = re.compile(
 # Environments whose bodies are never split or joined as prose.
 _PROSE_ENV_BEGIN_RE = re.compile(
     r'^\s*\\begin\{(equation|align|table|tabular|figure|algorithm|'
-    r'algorithmic|keyword|frontmatter|verbatim|lstlisting)\}')
+    r'algorithmic|keyword|frontmatter|verbatim|lstlisting)\*?\}')
 _PROSE_ENV_END_RE = re.compile(
     r'^\s*\\end\{(equation|align|table|tabular|figure|algorithm|'
-    r'algorithmic|keyword|frontmatter|verbatim|lstlisting)\}')
+    r'algorithmic|keyword|frontmatter|verbatim|lstlisting)\*?\}')
 
 _ITEM_RE = re.compile(r'^\s*\\item\b')
 
@@ -286,8 +286,150 @@ def _brace_balance(line):
     return opens - closes
 
 
+# Captions are prose embedded in otherwise non-prose float environments.  Keep
+# their command line structural, but reflow their mandatory argument with the
+# same complementary join/split rules as ordinary prose.
+_CAPTION_START_RE = re.compile(
+    r'(?m)^(?P<indent>[ \t]*)[^%\n]*?\\caption\*?(?![A-Za-z@])'
+    r'(?:[ \t]*\[[^\]\n]*\])?[ \t]*(?:\n[ \t]*)?\{')
+_CAPTION_NON_PROSE_ENV_RE = re.compile(
+    r'\\(?P<action>begin|end)\{(?P<env>equation|align|tabular|algorithmic|'
+    r'keyword|frontmatter|verbatim|lstlisting)\*?\}')
+
+
+def _caption_is_in_non_prose_environment(text, position):
+    """Whether ``position`` is inside a protected, non-float environment."""
+    environments = []
+    for line in text[:position].split('\n'):
+        # An environment command in a TeX comment does not change the context.
+        line = re.sub(r'(?<!\\)%.*$', '', line)
+        for match in _CAPTION_NON_PROSE_ENV_RE.finditer(line):
+            env = match.group('env')
+            if match.group('action') == 'begin':
+                environments.append(env)
+            elif env in environments:
+                environments.pop(len(environments) - 1
+                                 - environments[::-1].index(env))
+    return bool(environments)
+
+
+def _matching_brace(text, opening):
+    """Return the closing brace matching ``opening``, or ``None`` if absent."""
+    depth = 0
+    in_comment = False
+    i = opening
+    while i < len(text):
+        char = text[i]
+        if char == '\n':
+            in_comment = False
+        elif in_comment:
+            i += 1
+            continue
+        elif char == '\\':
+            # Skip the escaped character, including escaped braces and percent
+            # signs.  Two backslashes leave a following brace unescaped.
+            i += 2
+            continue
+        elif char == '%':
+            in_comment = True
+        elif char == '{':
+            depth += 1
+        elif char == '}':
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return None
+
+
+def _format_caption_bodies(text, formatter):
+    """Apply ``formatter(body, indent)`` to every complete ``\\caption`` body."""
+    result = []
+    pos = 0
+    for match in _CAPTION_START_RE.finditer(text):
+        # A nested-looking caption command belongs to an already handled body.
+        # Do not alter literal caption text in verbatim-like environments.
+        if (match.start() < pos
+                or _caption_is_in_non_prose_environment(text, match.start())):
+            continue
+        opening = match.end() - 1
+        closing = _matching_brace(text, opening)
+        if closing is None:
+            continue
+        result.append(text[pos:opening + 1])
+        result.append(formatter(text[opening + 1:closing], match.group('indent')))
+        pos = closing
+    result.append(text[pos:])
+    return ''.join(result)
+
+
+_SENTENCE_SPLIT_RE = re.compile(
+    r'(?P<ending>[.?!]+(?:\$+|\\\]|[)\]}\'"`»”’])*)'
+    r'(?P<space>[ \t]+)(?=[A-Z])')
+
+
+def _split_sentences(line):
+    """Return the non-empty sentence-sized pieces of one prose line."""
+    protected = PROTECT_RE.sub(lambda m: m.group(0)[:-1] + PLACEHOLDER, line)
+    sentences = []
+    start = 0
+    for match in _SENTENCE_SPLIT_RE.finditer(protected):
+        # Keep the terminator and any trailing math/quote/bracket closers with
+        # the preceding sentence, and discard only its following whitespace.
+        sentences.append(protected[start:match.start('space')])
+        start = match.end('space')
+    sentences.append(protected[start:])
+    return [s.replace(PLACEHOLDER, '.') for s in sentences if s.strip()]
+
+
+def _split_caption_sentences(body, indent):
+    """Split caption prose and indent continuation sentences like its command."""
+    result = []
+    for line_number, line in enumerate(body.split('\n')):
+        leading = re.match(r'^[ \t]*', line).group(0)
+        sentences = _split_sentences(line[len(leading):])
+        if not sentences:
+            result.append(line)
+            continue
+        # A physical continuation line should be indented with the caption even
+        # if it arrived unindented; retain any deeper indentation it already has.
+        first_indent = leading if line_number == 0 or leading else indent
+        for sentence_number, sentence in enumerate(sentences):
+            result.append((first_indent if sentence_number == 0 else indent)
+                          + sentence)
+    return '\n'.join(result)
+
+
+def _join_caption_lines(body, indent):
+    """Join hard-wrapped caption lines without crossing sentence boundaries."""
+    result = []
+    buffer = None
+
+    def flush():
+        nonlocal buffer
+        if buffer is not None:
+            result.append(buffer)
+            buffer = None
+
+    for line in body.split('\n'):
+        stripped = line.strip()
+        if not stripped:
+            flush()
+            result.append('')
+        elif buffer is None:
+            buffer = stripped
+        elif _ends_sentence(buffer) or _has_inline_comment(buffer):
+            flush()
+            buffer = stripped
+        else:
+            buffer = buffer.rstrip() + ' ' + stripped
+    flush()
+    return ('\n' + indent).join(result)
+
+
 def rule3_one_sentence_per_line(text):
     """Split sentences onto individual lines, protecting abbreviations."""
+    text = _format_caption_bodies(text, _split_caption_sentences)
     lines = text.split('\n')
     result = []
     in_env = 0
@@ -302,21 +444,7 @@ def rule3_one_sentence_per_line(text):
         if in_env or not stripped or stripped == '%' or _PROSE_SKIP_RE.match(stripped):
             result.append(line)
             continue
-        protected = PROTECT_RE.sub(lambda m: m.group(0)[:-1] + PLACEHOLDER, line)
-        parts = re.split(r'\.(\s+)(?=[A-Z])', protected)
-        sentences = []
-        i = 0
-        while i < len(parts):
-            if i + 1 < len(parts) and re.match(r'^\s+$', parts[i + 1]):
-                sentences.append(parts[i] + '.')
-                i += 2
-            else:
-                sentences.append(parts[i])
-                i += 1
-        for s in sentences:
-            restored = s.replace(PLACEHOLDER, '.')
-            if restored.strip():
-                result.append(restored)
+        result.extend(_split_sentences(line))
     return '\n'.join(result)
 
 
@@ -824,8 +952,10 @@ def rule18_join_wrapped_lines(text):
     so its wrapped body is gathered without being pulled onto the line above; a
     structural command left with open braces — a heading title wrapped across
     lines — absorbs continuation lines until the braces balance, so the title
-    becomes one line and never leaks into the following prose.
+    becomes one line and never leaks into the following prose.  Caption bodies
+    are the exception to float protection: they are prose and are reflowed.
     """
+    text = _format_caption_bodies(text, _join_caption_lines)
     lines = text.split('\n')
     result = []
     buffer = None  # text of the run being accumulated, or None

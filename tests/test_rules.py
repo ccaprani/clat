@@ -150,10 +150,37 @@ class TestRule3:
         result = rule3_one_sentence_per_line(src)
         assert result == src  # no split
 
+    def test_split_question_and_exclamation_sentences(self):
+        src = 'Is this correct? Yes, it is! The final sentence.'
+        assert rule3_one_sentence_per_line(src) == (
+            'Is this correct?\nYes, it is!\nThe final sentence.')
+
     def test_skip_commands(self):
         src = '\\begin{equation}\nA. B.\n\\end{equation}'
         result = rule3_one_sentence_per_line(src)
         assert result == src
+
+    def test_split_caption_sentences_with_matching_indentation(self):
+        src = '\t\\caption{First caption sentence. Second caption sentence.}'
+        assert rule3_one_sentence_per_line(src) == (
+            '\t\\caption{First caption sentence.\n'
+            '\tSecond caption sentence.}')
+
+    def test_split_caption_with_optional_short_caption(self):
+        src = ('\\caption[Short caption]{The \\emph{first caption} sentence. '
+               'Second caption sentence.}')
+        assert rule3_one_sentence_per_line(src) == (
+            '\\caption[Short caption]{The \\emph{first caption} sentence.\n'
+            'Second caption sentence.}')
+
+    def test_split_caption_question_exclamation_and_closer(self):
+        src = ('\\caption{Is this correct? Yes, it is! '
+               'This is \\emph{the final sentence.} Another sentence.}')
+        assert rule3_one_sentence_per_line(src) == (
+            '\\caption{Is this correct?\n'
+            'Yes, it is!\n'
+            'This is \\emph{the final sentence.}\n'
+            'Another sentence.}')
 
 
 # ── Rule 4: equation punctuation ────────────────────────────────────
@@ -628,6 +655,65 @@ class TestRule18:
         assert result.text == LOREM_SENTENCES
         assert result.converged
         assert texfmt(result.text, 'lorem.tex').text == result.text  # idempotent
+
+    def test_caption_pipeline_is_one_sentence_per_line(self):
+        src = (
+            '\\begin{figure}\n'
+            '\\caption{A caption sentence split\n'
+            'across source lines. A second caption sentence.}\n'
+            '\\end{figure}'
+        )
+        expected = (
+            '\\begin{figure}\n'
+            '\t\\caption{A caption sentence split across source lines.\n'
+            '\tA second caption sentence.}\n'
+            '\\end{figure}'
+        )
+        result = texfmt(src, 'caption.tex')
+        assert result.text == expected
+        assert result.converged
+        assert texfmt(result.text, 'caption.tex').text == expected
+
+    def test_caption_after_centering_is_reflowed(self):
+        src = ('\\begin{figure}\n'
+               '\\centering\\caption{First caption sentence. Second caption sentence?}\n'
+               '\\end{figure}')
+        assert texfmt(src, 'inline-caption.tex').text == (
+            '\\begin{figure}\n'
+            '\t\\centering\\caption{First caption sentence.\n'
+            '\tSecond caption sentence?}\n'
+            '\\end{figure}')
+
+    def test_caption_argument_on_next_line_is_reflowed(self):
+        src = ('\\begin{figure}\n'
+               '\\caption[Short caption]\n'
+               '{First caption sentence. Second caption sentence.}\n'
+               '\\end{figure}')
+        assert texfmt(src, 'multiline-caption.tex').text == (
+            '\\begin{figure}\n'
+            '\t\\caption[Short caption]\n'
+            '\t{First caption sentence.\n'
+            '\tSecond caption sentence.}\n'
+            '\\end{figure}')
+
+    def test_caption_in_algorithm_is_reflowed(self):
+        src = ('\\begin{algorithm}\n'
+               '\\caption{First caption sentence. Second caption sentence.}\n'
+               '\\end{algorithm}')
+        assert texfmt(src, 'algorithm-caption.tex').text == (
+            '\\begin{algorithm}\n'
+            '\\caption{First caption sentence.\n'
+            'Second caption sentence.}\n'
+            '\\end{algorithm}')
+
+    @pytest.mark.parametrize('environment', ['verbatim', 'verbatim*',
+                                               'lstlisting', 'lstlisting*'])
+    def test_caption_literal_in_verbatim_is_untouched(self, environment):
+        src = (f'\\begin{{{environment}}}\n'
+               '\\caption{Literal first split\n'
+               'literal continuation.}\n'
+               f'\\end{{{environment}}}')
+        assert texfmt(src, 'literal.tex').text == src
 
     def test_is_inverse_of_one_sentence_per_line(self):
         # A hard-wrapped sentence is the case rule3 cannot handle on its own.
