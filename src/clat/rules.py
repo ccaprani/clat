@@ -363,9 +363,11 @@ def _format_caption_bodies(text, formatter):
     return ''.join(result)
 
 
+# A new sentence can begin with a capital letter or a LaTeX control word such
+# as ``\AS{...}``; both must be valid split points after its terminator.
 _SENTENCE_SPLIT_RE = re.compile(
     r'(?P<ending>[.?!]+(?:\$+|\\\]|[)\]}\'"`»”’])*)'
-    r'(?P<space>[ \t]+)(?=[A-Z])')
+    r'(?P<space>[ \t]+)(?=[A-Z]|\\[A-Za-z@])')
 
 
 def _split_sentences(line):
