@@ -464,16 +464,43 @@ class TestRule12:
         src = r'\includegraphics[width=100mm]{fig}'
         assert rule12_number_unit_spacing(src) == src
 
+    def test_core_length_command_arguments_left_alone(self):
+        # These are TeX dimensions, not prose.  Inserting \, makes them invalid.
+        src = '\n'.join((
+            r'\vspace{1cm}',
+            r'\vspace*{1 cm}',
+            r'\hspace*{10 mm}',
+            r'\setlength{\parskip}{3mm}',
+            r'\addtolength{\textwidth}{1cm}',
+            r'\rule[1mm]{2cm}{3 mm}',
+            r'\resizebox{1cm}{2mm}{content}',
+        ))
+        assert rule12_number_unit_spacing(src) == src
+
+    def test_nested_length_expression_left_alone(self):
+        src = r'\vspace{\dimexpr 1cm + 2mm\relax}'
+        assert rule12_number_unit_spacing(src) == src
+
+    def test_unbraced_length_primitives_left_alone(self):
+        src = '\n'.join((r'\vskip 1cm plus 2mm', r'\kern 3 mm'))
+        assert rule12_number_unit_spacing(src) == src
+
+    def test_minipage_width_left_alone(self):
+        src = r'\begin{minipage}[t]{1cm}'
+        assert rule12_number_unit_spacing(src) == src
+
     def test_preamble_skipped_but_body_spaced(self):
         src = (
             '\\documentclass{article}\n'
             '\\usepackage[margin=25mm]{geometry}\n'
             '\\begin{document}\n'
+            '\\vspace{1cm}\n'
             'A beam 100mm long carries 50 kN.\n'
             '\\end{document}\n'
         )
         out = rule12_number_unit_spacing(src)
         assert r'\usepackage[margin=25mm]{geometry}' in out  # preamble intact
+        assert r'\vspace{1cm}' in out  # body dimension intact
         assert 'A beam 100\\,mm long carries 50\\,kN.' in out  # body spaced
 
     def test_prose_units_in_text_macro_still_spaced(self):
@@ -775,6 +802,11 @@ class TestRule18:
         src = '\\section{Method}\nThe method wraps\nacross lines.'
         assert rule18_join_wrapped_lines(src) == (
             '\\section{Method}\nThe method wraps across lines.')
+
+    def test_length_command_is_a_boundary(self):
+        # A vertical-spacing command must remain on its own physical line.
+        src = '\\vspace{1cm}\nA sentence follows.'
+        assert rule18_join_wrapped_lines(src) == src
 
     def test_protected_environment_body_left_verbatim(self):
         src = '\\begin{equation}\na = b\nc = d\n\\end{equation}'

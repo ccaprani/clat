@@ -252,10 +252,11 @@ A bare `s` is deliberately excluded from the no-space fix so that decades like
 `1990s` are not mistaken for units.
 
 Only the **document body** is touched. A number and unit are a TeX dimension —
-not prose — in the preamble, and after a `=` or `[` anywhere (`margin=25mm`,
-`\includegraphics[width=100mm]`, row spacing `\\[10mm]`); there `\,` would be
-invalid, so those are left alone. Units inside a text-mode argument such as
-`\textbf{100 kN}` are still spaced.
+not prose — in the preamble, after a `=` or `[` anywhere (`margin=25mm`,
+`\includegraphics[width=100mm]`, row spacing `\\[10mm]`), or in the arguments
+of core length commands such as `\vspace{1cm}`, `\setlength{\parskip}{3mm}`, and
+`\rule{1cm}{2mm}`. There `\,` would be invalid, so those are left alone. Units
+inside a text-mode argument such as `\textbf{100 kN}` are still spaced.
 
 ### 13 · `old_font_commands`
 

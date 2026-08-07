@@ -29,7 +29,7 @@ clat --version
 ```
 
 ```text
-clat 0.8.0
+clat 0.9.0
 ```
 
 ## With pipx
