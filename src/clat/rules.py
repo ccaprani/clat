@@ -241,6 +241,8 @@ _PROSE_SKIP_RE = re.compile(
     r'\\usepackage|\\newcommand|\\renewcommand|\\def|\\let|\\input|'
     r'\\bibliography|\\documentclass|\\title|\\author|\\address|'
     r'\\ead|\\cortext|\\journal|\\bibliographystyle|\\addtolength|'
+    r'\\(?:addvspace|hspace|vspace|setlength|rule|resizebox|raisebox|'
+    r'vskip|hskip|kern|mkern|raise|lower)\b|'
     r'\\Require|\\Ensure|\\Statex|\\State|\\For|\\EndFor|\\If|\\EndIf)'
 )
 
@@ -673,6 +675,109 @@ def rule11_tilde_before_refs(text):
         r'~\1', text)
 
 
+_DIMENSION_ARGUMENT_COMMANDS = {
+    'addtolength': (1,),
+    'addvspace': (0,),
+    'hspace': (0,),
+    'parbox': (0,),
+    'raisebox': (0,),
+    'resizebox': (0, 1),
+    'rule': (0, 1),
+    'setlength': (1,),
+    'vspace': (0,),
+}
+_DIMENSION_COMMAND_RE = re.compile(
+    r'\\(?P<command>'
+    + '|'.join(sorted(_DIMENSION_ARGUMENT_COMMANDS, key=len, reverse=True))
+    + r')\*?(?![A-Za-z@])'
+)
+_DIMENSION_ENV_BEGIN_RE = re.compile(
+    r'\\begin\s*\{\s*(?:minipage|varwidth)\*?\s*\}'
+)
+_DIMENSION_PRIMITIVE_RE = re.compile(
+    r'\\(?:hskip|kern|lower|mkern|raise|vskip)(?![A-Za-z@])'
+)
+
+
+def _matching_bracket(text, opening):
+    """Return the closing bracket matching ``opening``, or ``None`` if absent."""
+    depth = 0
+    i = opening
+    while i < len(text):
+        char = text[i]
+        if char == '\\':
+            i += 2
+            continue
+        if char == '[':
+            depth += 1
+        elif char == ']':
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return None
+
+
+def _skip_optional_arguments(text, position):
+    """Advance past whitespace and any complete optional ``[...]`` arguments."""
+    while True:
+        while position < len(text) and text[position].isspace():
+            position += 1
+        if position >= len(text) or text[position] != '[':
+            return position
+        closing = _matching_bracket(text, position)
+        if closing is None:
+            return len(text)
+        position = closing + 1
+
+
+def _dimension_argument_spans(text, primitive_dimension_re):
+    """Return spans of known TeX dimension arguments within ``text``.
+
+    The number--unit rule is intentionally active in text macros, so simply
+    ignoring every braced argument would lose valid prose fixes.  Instead,
+    recognise the mandatory arguments of core length commands and leave only
+    those spans untouched.
+    """
+    spans = []
+
+    for match in _DIMENSION_COMMAND_RE.finditer(text):
+        wanted = _DIMENSION_ARGUMENT_COMMANDS[match.group('command')]
+        position = match.end()
+        for index in range(max(wanted) + 1):
+            position = _skip_optional_arguments(text, position)
+            if position >= len(text) or text[position] != '{':
+                break
+            closing = _matching_brace(text, position)
+            if closing is None:
+                break
+            if index in wanted:
+                spans.append((position, closing + 1))
+            position = closing + 1
+
+    # These environments take their width as the first mandatory argument
+    # after \begin{...}, with any optional arguments first.
+    for match in _DIMENSION_ENV_BEGIN_RE.finditer(text):
+        position = _skip_optional_arguments(text, match.end())
+        if position < len(text) and text[position] == '{':
+            closing = _matching_brace(text, position)
+            if closing is not None:
+                spans.append((position, closing + 1))
+
+    # TeX primitives accept an unbraced length.  Protect the length and any
+    # ``plus``/``minus`` components, while leaving following prose available to
+    # the rule.
+    for match in _DIMENSION_PRIMITIVE_RE.finditer(text):
+        position = match.end()
+        while position < len(text) and text[position].isspace():
+            position += 1
+        dimension = primitive_dimension_re.match(text, position)
+        if dimension:
+            spans.append((dimension.start(), dimension.end()))
+
+    return sorted(spans)
+
+
 def rule12_number_unit_spacing(text):
     """Normalise number-unit spacing to a non-expanding thin space.
 
@@ -686,10 +791,10 @@ def rule12_number_unit_spacing(text):
     Already-correct ``\\,`` spacing is left unchanged.  No-space fixes exclude
     bare ``s`` to avoid turning decades such as ``1990s`` into units.
 
-    Only the document body is touched.  In the preamble, and after a ``=`` or
-    ``[`` (``margin=25mm``, ``\\[10mm]``), a number and unit form a TeX
-    dimension or package option where ``\\,`` is invalid, so they are left
-    alone.
+    Only the document body is touched.  In the preamble, after a ``=`` or
+    ``[``, and in core LaTeX length-command arguments (for example,
+    ``\\vspace{1cm}``), a number and unit form a TeX dimension rather than
+    prose, so they are left alone.
     """
     units = sorted(_UNITS, key=len, reverse=True)
     no_sep_units = sorted((u for u in _UNITS if u != r's'), key=len, reverse=True)
@@ -745,17 +850,37 @@ def rule12_number_unit_spacing(text):
         chunk = no_sep_dollar_re.sub(r'\g<expr>\\,\g<unit>', chunk)
         return chunk
 
+    primitive_dimension_re = re.compile(
+        r'[+-]?\d+(?:\.\d+)?[ \t]*(?:' + unit_pat + r')' + unit_boundary
+        + r'(?:\s+(?:plus|minus)\s+[+-]?\d+(?:\.\d+)?[ \t]*(?:'
+        + unit_pat + r')' + unit_boundary + r')*'
+    )
+
+    def _space_prose(chunk):
+        result = []
+        position = 0
+        for start, end in _dimension_argument_spans(chunk, primitive_dimension_re):
+            # A command nested in an already protected argument needs no
+            # separate handling; retaining the larger span preserves it all.
+            if start < position:
+                continue
+            result.append(_space_units(chunk[position:start]))
+            result.append(chunk[start:end])
+            position = end
+        result.append(_space_units(chunk[position:]))
+        return ''.join(result)
+
     # Unit spacing is a text-mode prose fix.  The preamble is all commands and
     # package options (e.g. geometry lengths) where \, is invalid, so restrict
     # the fix to the document body.  A fragment with no \begin{document} (an
     # \input-ed chapter, say) is treated as body.
     begin = re.search(r'\\begin\{document\}', text)
     if not begin:
-        return _space_units(text)
+        return _space_prose(text)
     end = re.search(r'\\end\{document\}', text)
     body_end = end.start() if end else len(text)
     return (text[:begin.end()]
-            + _space_units(text[begin.end():body_end])
+            + _space_prose(text[begin.end():body_end])
             + text[body_end:])
 
 
