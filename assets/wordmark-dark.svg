@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 120" width="380" height="120" role="img" aria-label="clat — Opinionated LaTeX Tidy">
+  <title>clat — Opinionated LaTeX Tidy</title>
+  <!-- mark: three tidied lines of type (clang / clunk / splat) -->
+  <rect x="16" y="33" width="86" height="15" rx="7.5" fill="#26c6da"/>
+  <rect x="16" y="53" width="58" height="15" rx="7.5" fill="#ef5350"/>
+  <rect x="16" y="73" width="73" height="15" rx="7.5" fill="#ffca28"/>
+  <!-- wordmark -->
+  <text x="124" y="73" font-family="'DejaVu Sans Mono','JetBrains Mono',ui-monospace,monospace" font-size="62" font-weight="700" fill="#ffffff">clat</text>
+  <text x="126" y="100" font-family="'DejaVu Sans','Segoe UI',Helvetica,Arial,sans-serif" font-size="19" letter-spacing="0.4" fill="#9fa8da">Opinionated LaTeX Tidy</text>
+</svg>
