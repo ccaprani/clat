@@ -507,6 +507,61 @@ class TestRule12:
         # A '{'-delimited text argument is prose, so spacing still applies.
         assert rule12_number_unit_spacing(r'\textbf{100 kN}') == r'\textbf{100\,kN}'
 
+    @pytest.mark.parametrize('opening, closing', [
+        (r'\begin{tabular}{p{3.0cm}m{20 mm}b{1cm}}', 'tabular'),
+        (r'\begin{tabular}[t]{>{\raggedright\arraybackslash}p{3.4cm}}', 'tabular'),
+        (r'\begin{tabular}{*{2}{p{\dimexpr 2cm + 3mm\relax}}}', 'tabular'),
+        (r'\begin{tabular}{w{l}{2cm}W{r}{3cm}}', 'tabular'),
+        (r'\begin{tabular}{L{3cm}}', 'tabular'),
+        (r'\begin{tabular*}{12cm}[b]{p{3cm}}', 'tabular*'),
+        (r'\begin{tabularx}{12 cm}[t]{p{3cm}X}', 'tabularx'),
+        (r'\begin{tabulary}{12cm}{p{3cm}L}', 'tabulary'),
+        (r'\begin{longtable}[c]{p{3cm}}', 'longtable'),
+        (r'\begin{array}[t]{p{3cm}}', 'array'),
+        (r'\begin{xltabular}{12cm}{p{3cm}X}', 'xltabular'),
+        ('\\begin{tabular}\n{p{3cm}\n>{\\centering}p{4cm}}', 'tabular'),
+    ])
+    def test_table_layout_arguments_left_alone(self, opening, closing):
+        # Preambles are layout syntax, but table cells remain prose.
+        src = opening + '\n100 kN & \\textbf{60mm} \\\\\n\\end{' + closing + '}'
+        expected = src.replace('100 kN', r'100\,kN').replace('60mm', r'60\,mm')
+        assert rule12_number_unit_spacing(src) == expected
+
+    @pytest.mark.parametrize('src', [
+        r'\multicolumn{2}{p{3.0cm}}{100 kN}',
+        r'\multicolumn{2}{>{\centering}p{\dimexpr 3cm + 2mm\relax}}{100 kN}',
+        r'\multirow{2}{3.0cm}{100 kN}',
+        r'\multirow[t]{2}[1]{3 cm}[1mm]{100 kN}',
+        r'\newcolumntype{L}{p{3cm}} 100 kN',
+        r'\newcolumntype{L}[1]{>{#1}p{3 cm}} 100 kN',
+    ])
+    def test_table_command_layout_arguments_left_alone(self, src):
+        assert rule12_number_unit_spacing(src) == src.replace('100 kN', r'100\,kN')
+
+    def test_table_preamble_does_not_hide_following_text(self):
+        src = r'\begin{tabular}{p{3cm}}100mm\end{tabular}\textbf{60 kN}'
+        expected = r'\begin{tabular}{p{3cm}}100\,mm\end{tabular}\textbf{60\,kN}'
+        assert rule12_number_unit_spacing(src) == expected
+
+    def test_unrelated_braces_are_not_column_specs(self):
+        # Do not protect every p{...} or all arguments of arbitrary commands.
+        src = r'\textbf{p{100mm}} and \tabularnote{60 kN}'
+        expected = r'\textbf{p{100\,mm}} and \tabularnote{60\,kN}'
+        assert rule12_number_unit_spacing(src) == expected
+
+    def test_full_pipeline_preserves_table_dimensions(self):
+        src = '\n'.join((
+            r'\begin{tabular}{>{\raggedright\arraybackslash}p{3.0cm}p{3.4cm}}',
+            r'100 kN & 60mm \\',
+            r'\multicolumn{2}{p{6.4cm}}{A load of 200 kN} \\',
+            r'\end{tabular}',
+        ))
+        result = texfmt(src, 'chapter.tex').text
+        for width in ('3.0', '3.4', '6.4'):
+            assert 'p{' + width + 'cm}' in result
+        assert r'100\,kN' in result and r'60\,mm' in result and r'200\,kN' in result
+        assert texfmt(result, 'chapter.tex').text == result
+
     def test_fragment_without_preamble_treated_as_body(self):
         # An \input-ed chapter has no \begin{document}; still spaced.
         assert rule12_number_unit_spacing('a load of 60 kN') == 'a load of 60\\,kN'

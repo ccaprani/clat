@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-from clat.cli import discover_tex_files, _cmd_set
+from clat.cli import discover_tex_files, _cmd_format, _cmd_set
 
 
 def test_discover_tex_files_recurses_inputs(tmp_path, monkeypatch):
@@ -37,6 +37,31 @@ def test_discover_tex_files_recurses_inputs(tmp_path, monkeypatch):
         Path('appendix/app.tex'),
         Path('missing.tex'),
     ]
+
+
+def test_recursive_format_preserves_included_table_dimensions(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / 'main.tex').write_text(
+        '\\documentclass{article}\n'
+        '\\begin{document}\n'
+        '\\input{chapter}\n'
+        '\\end{document}\n'
+    )
+    chapter = tmp_path / 'chapter.tex'
+    chapter.write_text('\n'.join((
+        r'\begin{tabular}{>{\raggedright\arraybackslash}p{3.0cm}p{3.4cm}}',
+        r'100 kN & 60mm \\',
+        r'\end{tabular}',
+    )))
+
+    _cmd_format(['-r', 'main.tex'])
+
+    text = chapter.read_text()
+    assert r'p{3.0cm}p{3.4cm}' in text
+    assert r'100\,kN' in text and r'60\,mm' in text
+    # A second recursive check must be clean, not reintroduce broken widths.
+    _cmd_format(['--check', '-r', 'main.tex'])
+    assert chapter.read_text() == text
 
 
 def test_cmd_set_accepts_rule_id(tmp_path, monkeypatch):
