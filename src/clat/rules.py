@@ -679,6 +679,9 @@ _DIMENSION_ARGUMENT_COMMANDS = {
     'addtolength': (1,),
     'addvspace': (0,),
     'hspace': (0,),
+    'multicolumn': (1,),
+    'multirow': (1,),
+    'newcolumntype': (1,),
     'parbox': (0,),
     'raisebox': (0,),
     'resizebox': (0, 1),
@@ -691,8 +694,26 @@ _DIMENSION_COMMAND_RE = re.compile(
     + '|'.join(sorted(_DIMENSION_ARGUMENT_COMMANDS, key=len, reverse=True))
     + r')\*?(?![A-Za-z@])'
 )
+# Table preambles are layout code, including arguments of custom column types.
+# Protect the specification (and any overall width), not the cells that follow.
+_DIMENSION_ENVIRONMENT_ARGUMENTS = {
+    'array': (0,),
+    'longtable': (0,),
+    'minipage': (0,),
+    'minipage*': (0,),
+    'tabular': (0,),
+    'tabular*': (0, 1),
+    'tabularx': (0, 1),
+    'tabulary': (0, 1),
+    'varwidth': (0,),
+    'varwidth*': (0,),
+    'xltabular': (0, 1),
+}
 _DIMENSION_ENV_BEGIN_RE = re.compile(
-    r'\\begin\s*\{\s*(?:minipage|varwidth)\*?\s*\}'
+    r'\\begin\s*\{\s*(?P<environment>'
+    + '|'.join(re.escape(name) for name in sorted(
+        _DIMENSION_ENVIRONMENT_ARGUMENTS, key=len, reverse=True))
+    + r')\s*\}'
 )
 _DIMENSION_PRIMITIVE_RE = re.compile(
     r'\\(?:hskip|kern|lower|mkern|raise|vskip)(?![A-Za-z@])'
@@ -731,38 +752,37 @@ def _skip_optional_arguments(text, position):
         position = closing + 1
 
 
+def _mandatory_argument_spans(text, position, wanted):
+    """Yield selected braced arguments, allowing optional arguments between them."""
+    for index in range(max(wanted) + 1):
+        position = _skip_optional_arguments(text, position)
+        if position >= len(text) or text[position] != '{':
+            break
+        closing = _matching_brace(text, position)
+        if closing is None:
+            break
+        if index in wanted:
+            yield (position, closing + 1)
+        position = closing + 1
+
+
 def _dimension_argument_spans(text, primitive_dimension_re):
-    """Return spans of known TeX dimension arguments within ``text``.
+    """Return spans of known TeX dimension and column-specification arguments.
 
     The number--unit rule is intentionally active in text macros, so simply
     ignoring every braced argument would lose valid prose fixes.  Instead,
-    recognise the mandatory arguments of core length commands and leave only
-    those spans untouched.
+    recognise the layout arguments of length and table commands and leave only
+    those spans untouched.  Table cells and spanning-cell content remain prose.
     """
     spans = []
 
     for match in _DIMENSION_COMMAND_RE.finditer(text):
         wanted = _DIMENSION_ARGUMENT_COMMANDS[match.group('command')]
-        position = match.end()
-        for index in range(max(wanted) + 1):
-            position = _skip_optional_arguments(text, position)
-            if position >= len(text) or text[position] != '{':
-                break
-            closing = _matching_brace(text, position)
-            if closing is None:
-                break
-            if index in wanted:
-                spans.append((position, closing + 1))
-            position = closing + 1
+        spans.extend(_mandatory_argument_spans(text, match.end(), wanted))
 
-    # These environments take their width as the first mandatory argument
-    # after \begin{...}, with any optional arguments first.
     for match in _DIMENSION_ENV_BEGIN_RE.finditer(text):
-        position = _skip_optional_arguments(text, match.end())
-        if position < len(text) and text[position] == '{':
-            closing = _matching_brace(text, position)
-            if closing is not None:
-                spans.append((position, closing + 1))
+        wanted = _DIMENSION_ENVIRONMENT_ARGUMENTS[match.group('environment')]
+        spans.extend(_mandatory_argument_spans(text, match.end(), wanted))
 
     # TeX primitives accept an unbraced length.  Protect the length and any
     # ``plus``/``minus`` components, while leaving following prose available to
@@ -792,9 +812,10 @@ def rule12_number_unit_spacing(text):
     bare ``s`` to avoid turning decades such as ``1990s`` into units.
 
     Only the document body is touched.  In the preamble, after a ``=`` or
-    ``[``, and in core LaTeX length-command arguments (for example,
-    ``\\vspace{1cm}``), a number and unit form a TeX dimension rather than
-    prose, so they are left alone.
+    ``[``, in core LaTeX length-command arguments (for example,
+    ``\\vspace{1cm}``), and in table widths and column specifications, a
+    number and unit form layout syntax rather than prose, so they are left
+    alone.  Unit spacing still applies to table cells.
     """
     units = sorted(_UNITS, key=len, reverse=True)
     no_sep_units = sorted((u for u in _UNITS if u != r's'), key=len, reverse=True)

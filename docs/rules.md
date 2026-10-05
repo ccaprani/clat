@@ -255,8 +255,31 @@ Only the **document body** is touched. A number and unit are a TeX dimension —
 not prose — in the preamble, after a `=` or `[` anywhere (`margin=25mm`,
 `\includegraphics[width=100mm]`, row spacing `\\[10mm]`), or in the arguments
 of core length commands such as `\vspace{1cm}`, `\setlength{\parskip}{3mm}`, and
-`\rule{1cm}{2mm}`. There `\,` would be invalid, so those are left alone. Units
-inside a text-mode argument such as `\textbf{100 kN}` are still spaced.
+`\rule{1cm}{2mm}`. There `\,` would be invalid, so those are left alone.
+
+Table widths and column specifications are also protected: `tabular`, `tabular*`,
+`tabularx`, `tabulary`, `longtable`, `xltabular`, and `array`, plus the layout
+arguments of `\multicolumn`, `\multirow`, and `\newcolumntype`. For example,
+`p{3.0cm}`, `>{\raggedright}m{20 mm}`, repeated specifications such as
+`*{2}{p{3cm}}`, and custom column types remain unchanged. Units in table cells,
+spanning-cell content, and text-mode arguments such as `\textbf{100 kN}` are
+still spaced.
+
+```latex
+% before
+\begin{tabular}{p{3.0cm}p{3.4cm}}
+100 kN & 60mm \\
+\end{tabular}
+
+% after: column widths unchanged, cell units spaced
+\begin{tabular}{p{3.0cm}p{3.4cm}}
+100\,kN & 60\,mm \\
+\end{tabular}
+```
+
+This prevents inserting invalid spacing into valid layout dimensions; it does
+not repair already-corrupted dimensions such as `p{3.0\,cm}`. Restore those
+widths to `p{3.0cm}` before formatting again.
 
 ### 13 · `old_font_commands`
 
